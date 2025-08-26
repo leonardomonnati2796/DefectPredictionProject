@@ -69,7 +69,7 @@ public class DatasetGenerator {
         }
     }
     
-    private List<String[]> buildCsvData(final List<ProjectRelease> allReleases, final List<JiraTicket> tickets, final Map<String, RevCommit> releaseCommits, final MethodTracker tracker, final Map<String, List<String>> bugToMethodsMap, final double pMedian) throws IOException, GitAPIException {
+    private List<String[]> buildCsvData(final List<ProjectRelease> allReleases, final List<JiraTicket> tickets, final Map<String, RevCommit> releaseCommits, final MethodTracker tracker, final Map<String, List<String>> bugToMethodsMap, final double pMedian) throws IOException {
         final List<String[]> csvData = new ArrayList<>();
         csvData.add(CSV_HEADERS);
 
