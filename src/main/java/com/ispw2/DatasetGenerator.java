@@ -34,14 +34,15 @@ public class DatasetGenerator {
     private static final String BUGGY_NO = "no";
     private static final String METHOD_KEY_SEPARATOR = "::";
 
-
+    private final ConfigurationManager config;
     private final String projectName;
     private final GitConnector git;
     private final JiraConnector jira;
     private final List<ProjectRelease> releases;
     private final Map<String, RevCommit> releaseCommits;
 
-    public DatasetGenerator(final String projectName, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) {
+    public DatasetGenerator(ConfigurationManager config, final String projectName, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) {
+        this.config = config;
         this.projectName = projectName;
         this.git = git;
         this.jira = jira;
@@ -73,7 +74,7 @@ public class DatasetGenerator {
         final List<String[]> csvData = new ArrayList<>();
         csvData.add(CSV_HEADERS);
 
-        final double cutoffPercentage = ConfigurationManager.getInstance().getReleaseCutoffPercentage();
+        final double cutoffPercentage = config.getReleaseCutoffPercentage();
         final int releaseCutoff = (int) Math.ceil(allReleases.size() * cutoffPercentage);
         final List<ProjectRelease> releasesToAnalyze = allReleases.subList(0, releaseCutoff);
 

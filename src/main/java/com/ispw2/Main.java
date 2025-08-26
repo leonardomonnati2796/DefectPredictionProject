@@ -2,6 +2,8 @@ package com.ispw2;
 
 import com.ispw2.analysis.DataAnalyzer;
 import com.ispw2.analysis.FeatureComparer;
+import com.ispw2.analysis.WhatIfSimulator;
+import com.ispw2.classification.ClassifierRunner;
 import com.ispw2.connectors.GitConnector;
 import com.ispw2.connectors.JiraConnector;
 import com.ispw2.model.ProjectRelease;
@@ -9,6 +11,7 @@ import com.ispw2.preprocessing.DataPreprocessor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import weka.classifiers.Classifier;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +35,8 @@ public class Main {
 
     public static void main(final String[] args) {
         log.info("Starting Defect Prediction Analysis...");
+        
+        final ConfigurationManager config = new ConfigurationManager();
 
         try {
             final String executionDir = System.getProperty("user.dir");
@@ -52,9 +57,7 @@ public class Main {
                 log.info("Output for git clones: {}", gitProjectsPath);
             }
 
-            // --- MODIFICA QUI ---
-            // Il ciclo for è stato sostituito da una chiamata al nuovo metodo.
-            processAllProjects(datasetsPath, gitProjectsPath);
+            processAllProjects(config, datasetsPath, gitProjectsPath);
 
         } catch (final IOException e) {
             log.error("A fatal I/O error occurred while setting up directories.", e);
@@ -63,19 +66,17 @@ public class Main {
         log.info("All projects processed and evaluated successfully.");
     }
 
-    // --- NUOVO METODO ESTRATTO ---
-    // Contiene la logica per iterare ed eseguire il pipeline per ogni progetto.
-    private static void processAllProjects(Path datasetsPath, Path gitProjectsPath) {
+    private static void processAllProjects(ConfigurationManager config, Path datasetsPath, Path gitProjectsPath) {
         for (final Project project : PROJECTS_TO_ANALYZE) {
             try {
-                runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
+                runPipelineFor(config, project, datasetsPath.toString(), gitProjectsPath.toString());
             } catch (Exception e) {
                 log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
             }
         }
     }
 
-    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
+    private static void runPipelineFor(ConfigurationManager config, final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
         log.info("---------------------------------------------------------");
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
@@ -83,6 +84,8 @@ public class Main {
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
         final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
         final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
+        // Aggiunto nuovamente il modelPath, ora necessario.
+        final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
 
         final GitConnector git = new GitConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
@@ -91,19 +94,32 @@ public class Main {
         final List<ProjectRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
 
-        generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
-        preprocessData(originalCsvPath, processedArffPath);
+        generateDatasetIfNotExists(config, project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
+        preprocessData(config, originalCsvPath, processedArffPath);
         
-        runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
+        // La chiamata ora include anche modelPath
+        runAnalysisAndSimulation(config, project.name(), originalCsvPath, processedArffPath, modelPath, datasetsBasePath, git, releaseCommits);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
-    private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
+    // --- MODIFICA QUI ---
+    // Il metodo ora orchestra l'intero flusso di analisi, classificazione e simulazione.
+    private static void runAnalysisAndSimulation(ConfigurationManager config, String projectName, String originalCsvPath, String processedArffPath, String modelPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
-            final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
-            analyzer.findAndSaveActionableMethod();
+            // Fase di Classificazione
+            final ClassifierRunner runner = new ClassifierRunner(config, processedArffPath, modelPath);
+            final Classifier bestModel = runner.getBestClassifier();
+            
+            // Fase di Analisi per trovare il metodo critico
+            final DataAnalyzer analyzer = new DataAnalyzer(config, originalCsvPath, processedArffPath, git, releaseCommits);
+            final String aFeature = analyzer.findAndSaveActionableMethod();
 
+            // Fase di Simulazione "What-If"
+            final WhatIfSimulator simulator = new WhatIfSimulator(processedArffPath, bestModel, aFeature);
+            simulator.runFullDatasetSimulation();
+
+            // Fase di Comparazione pre e post refactoring
             final String originalMethodPath = Paths.get(datasetsBasePath, projectName + "_AFMethod.txt").toString();
             final String refactoredMethodPath = Paths.get(datasetsBasePath, "AFMethod_refactored", projectName + "_AFMethod_refactored.txt").toString();
             
@@ -111,11 +127,11 @@ public class Main {
             comparer.compareMethods(originalMethodPath, refactoredMethodPath);
 
         } catch (Exception e) {
-            log.error("An error occurred during analysis for project {}", projectName, e);
+            log.error("An error occurred during analysis and simulation for project {}", projectName, e);
         }
     }
 
-    private static void generateDatasetIfNotExists(final String projectName, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) {
+    private static void generateDatasetIfNotExists(ConfigurationManager config, final String projectName, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) {
         log.info("[Milestone 1, Step 1] Checking for Dataset...");
         final String originalCsvPath = Paths.get(datasetsBasePath, projectName + ".csv").toString();
         final File datasetFile = new File(originalCsvPath);
@@ -124,20 +140,20 @@ public class Main {
             log.info("Dataset already exists. Skipping generation.");
         } else {
             log.info("Dataset not found or is empty. Generating...");
-            final DatasetGenerator generator = new DatasetGenerator(projectName, git, jira, releases, releaseCommits);
+            final DatasetGenerator generator = new DatasetGenerator(config, projectName, git, jira, releases, releaseCommits);
             generator.generateCsv(datasetsBasePath);
             log.info("Dataset generation complete.");
         }
     }
 
-    private static void preprocessData(final String originalCsvPath, final String processedArffPath) throws IOException {
+    private static void preprocessData(ConfigurationManager config, final String originalCsvPath, final String processedArffPath) throws IOException {
         log.info("[...] Preprocessing data for analysis...");
         final File arffFile = new File(processedArffPath);
         if (arffFile.exists() && arffFile.length() > 0) {
             log.info("Processed ARFF file already exists. Skipping preprocessing.");
         } else {
             try {
-                final DataPreprocessor processor = new DataPreprocessor(originalCsvPath, processedArffPath);
+                final DataPreprocessor processor = new DataPreprocessor(config, originalCsvPath, processedArffPath);
                 processor.processData();
                 log.info("Data preprocessing complete. Output: {}", processedArffPath);
             } catch (Exception e) {

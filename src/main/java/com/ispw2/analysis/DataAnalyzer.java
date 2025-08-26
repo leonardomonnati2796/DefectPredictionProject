@@ -28,7 +28,6 @@ public class DataAnalyzer {
 
     private static final Logger log = LoggerFactory.getLogger(DataAnalyzer.class);
 
-    // Constants for filenames and CSV columns
     private static final String ORIGINAL_AFMETHOD_FILENAME_SUFFIX = "_AFMethod.txt";
     private static final String REFACTORED_AFMETHOD_DIR = "AFMethod_refactored";
     private static final String REFACTORED_AFMETHOD_FILENAME_SUFFIX = "_AFMethod_refactored.txt";
@@ -49,19 +48,22 @@ public class DataAnalyzer {
         }
     }
 
+    private final ConfigurationManager config;
     private final String originalCsvPath;
     private final String processedArffPath;
     private final GitConnector git;
     private final Map<String, RevCommit> releaseCommits;
 
-    public DataAnalyzer(final String originalCsvPath, final String processedArffPath, final GitConnector git, final Map<String, RevCommit> releaseCommits) {
+    public DataAnalyzer(ConfigurationManager config, final String originalCsvPath, final String processedArffPath, final GitConnector git, final Map<String, RevCommit> releaseCommits) {
+        this.config = config;
         this.originalCsvPath = originalCsvPath;
         this.processedArffPath = processedArffPath;
         this.git = git;
         this.releaseCommits = releaseCommits;
     }
 
-    public void findAndSaveActionableMethod() throws IOException {
+    // --- MODIFICA 1: Cambiato il tipo di ritorno da 'void' a 'String' ---
+    public String findAndSaveActionableMethod() throws IOException {
         try {
             final Instances data = DataHelper.loadArff(processedArffPath);
             data.setClassIndex(data.numAttributes() - 1);
@@ -74,6 +76,9 @@ public class DataAnalyzer {
             } else {
                 log.warn("Skipping Step 7 as no AFMethod was identified.");
             }
+            
+            // --- MODIFICA 2: Aggiunto il return statement ---
+            return aFeature;
         } catch (Exception e) {
             throw new IOException("Failed during data analysis.", e);
         }
@@ -86,7 +91,7 @@ public class DataAnalyzer {
         selector.setSearch(new Ranker());
         selector.SelectAttributes(data);
         
-        final List<String> actionableFeatures = ConfigurationManager.getInstance().getActionableFeatures();
+        final List<String> actionableFeatures = config.getActionableFeatures();
         
         for (final double[] rankedAttribute : selector.rankedAttributes()) {
             final String featureName = data.attribute((int) rankedAttribute[0]).name();
@@ -137,8 +142,6 @@ public class DataAnalyzer {
         log.info("[Milestone 2, Step 7] Saving AFMethod source code and preparing for refactoring...");
         final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
         if (identifierOpt.isEmpty()) {
-            // --- MODIFICA QUI ---
-            // Aggiunto controllo per ottimizzazione.
             if (log.isErrorEnabled()) {
                 log.error("Could not parse method identifier: {}", methodRecord.get(CSV_COL_METHOD_NAME));
             }

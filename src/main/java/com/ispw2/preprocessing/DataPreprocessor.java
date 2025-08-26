@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class DataPreprocessor {
+    private final ConfigurationManager config;
     private final String inputCsvPath;
     private final String outputArffPath;
 
@@ -37,7 +38,8 @@ public class DataPreprocessor {
     
     private static final String REMOVE_INDICES = "1-3";
 
-    public DataPreprocessor(final String inputCsvPath, final String outputArffPath) {
+    public DataPreprocessor(ConfigurationManager config, final String inputCsvPath, final String outputArffPath) {
+        this.config = config;
         this.inputCsvPath = inputCsvPath;
         this.outputArffPath = outputArffPath;
     }
@@ -62,7 +64,7 @@ public class DataPreprocessor {
         final AttributeSelection attributeSelectionFilter = new AttributeSelection();
         attributeSelectionFilter.setEvaluator(new InfoGainAttributeEval());
         final Ranker search = new Ranker();
-        search.setNumToSelect(ConfigurationManager.getInstance().getFeaturesToSelect());
+        search.setNumToSelect(config.getFeaturesToSelect());
         attributeSelectionFilter.setSearch(search);
         attributeSelectionFilter.setInputFormat(dataNormalized);
         final Instances dataSelected = Filter.useFilter(dataNormalized, attributeSelectionFilter);
@@ -84,8 +86,6 @@ public class DataPreprocessor {
             final ArrayList<Attribute> attributes = defineWekaAttributes(headers);
             final Instances data = new Instances("Dataset", attributes, 0);
 
-            // --- MODIFICA QUI ---
-            // La variabile 'record' è stata rinominata in 'csvRecord'.
             for (final CSVRecord csvRecord : parser) {
                 if (csvRecord.size() != headers.size()) continue;
                 final DenseInstance instance = new DenseInstance(data.numAttributes());
@@ -104,13 +104,13 @@ public class DataPreprocessor {
         for (final String header : headers) {
             switch(header) {
                 case PROJECT_COLUMN, METHOD_NAME_COLUMN, RELEASE_COLUMN:
-                    attributes.add(new Attribute(header, (List<String>) null)); // String attribute
+                    attributes.add(new Attribute(header, (List<String>) null));
                     break;
                 case IS_BUGGY_COLUMN:
-                    attributes.add(new Attribute(header, Arrays.asList("no", "yes"))); // Nominal attribute
+                    attributes.add(new Attribute(header, Arrays.asList("no", "yes")));
                     break;
                 default:
-                    attributes.add(new Attribute(header)); // Numeric attribute
+                    attributes.add(new Attribute(header));
                     break;
             }
         }

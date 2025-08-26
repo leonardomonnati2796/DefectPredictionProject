@@ -28,12 +28,13 @@ public class ClassifierRunner {
     private static final String TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
     private static final String TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
 
-
+    private final ConfigurationManager config;
     private final String processedArffPath;
     private final String modelPath;
     private Instances data;
 
-    public ClassifierRunner(final String processedArffPath, final String modelPath) {
+    public ClassifierRunner(ConfigurationManager config, final String processedArffPath, final String modelPath) {
+        this.config = config;
         this.processedArffPath = processedArffPath;
         this.modelPath = modelPath;
     }
@@ -87,8 +88,6 @@ public class ClassifierRunner {
         }
         final Attribute classAttribute = this.data.classAttribute();
         if (classAttribute.numValues() < 2) {
-            // --- MODIFICA QUI ---
-            // Aggiunto controllo per ottimizzazione.
             if (log.isErrorEnabled()) {
                 log.error("The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
             }
@@ -159,10 +158,10 @@ public class ClassifierRunner {
         tuner.setNumFolds(NUM_FOLDS);
 
         if (baseClassifier instanceof RandomForest) {
-            final String[] params = ConfigurationManager.getInstance().getRandomForestTuningParams();
+            final String[] params = config.getRandomForestTuningParams();
             tuner.addCVParameter(String.join(" ", params));
         } else if (baseClassifier instanceof IBk) {
-            final String[] params = ConfigurationManager.getInstance().getIbkTuningParams();
+            final String[] params = config.getIbkTuningParams();
             tuner.addCVParameter(String.join(" ", params));
         }
         

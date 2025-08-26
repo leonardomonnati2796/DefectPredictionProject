@@ -19,13 +19,10 @@ public class ConfigurationManager {
     private static final String KEY_FEATURES_TO_SELECT = "preprocessing.features_to_select";
     private static final String KEY_IBK_K_RANGE = "tuner.ibk.k_range";
     private static final String KEY_RANDOMFOREST_ITERATIONS = "tuner.randomforest.iterations_range";
-
-    // Eager Initialization of the Singleton
-    private static final ConfigurationManager instance = new ConfigurationManager();
     
     private final Properties properties;
 
-    private ConfigurationManager() {
+    public ConfigurationManager() {
         properties = new Properties();
         try (InputStream input = ConfigurationManager.class.getResourceAsStream(CONFIG_FILE)) {
             if (input == null) {
@@ -38,9 +35,8 @@ public class ConfigurationManager {
         }
     }
 
-    public static ConfigurationManager getInstance() {
-        return instance;
-    }
+    // Il metodo getInstance() viene rimosso.
+    // I metodi per ottenere le proprietà rimangono invariati ma non sono più statici.
 
     public double getReleaseCutoffPercentage() {
         return Double.parseDouble(properties.getProperty(KEY_RELEASE_CUTOFF, "0.5"));
