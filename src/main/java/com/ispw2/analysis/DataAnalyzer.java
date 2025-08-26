@@ -61,7 +61,7 @@ public class DataAnalyzer {
         this.releaseCommits = releaseCommits;
     }
 
-    public String findAndSaveActionableMethod() throws IOException {
+    public void findAndSaveActionableMethod() throws IOException {
         try {
             final Instances data = DataHelper.loadArff(processedArffPath);
             data.setClassIndex(data.numAttributes() - 1);
@@ -74,9 +74,7 @@ public class DataAnalyzer {
             } else {
                 log.warn("Skipping Step 7 as no AFMethod was identified.");
             }
-            return aFeature;
         } catch (Exception e) {
-            // Weka methods throw generic Exception, wrap it in a more common one
             throw new IOException("Failed during data analysis.", e);
         }
     }
@@ -127,7 +125,9 @@ public class DataAnalyzer {
         final Optional<CSVRecord> targetRecord = buggyMethodsInLastRelease.stream()
                 .max(Comparator.comparingDouble(r -> Double.parseDouble(r.get(aFeature))));
         
-        if (targetRecord.isPresent()) {
+        // --- MODIFICA QUI ---
+        // Aggiunto il controllo 'isInfoEnabled' per ottimizzare le chiamate di log.
+        if (targetRecord.isPresent() && log.isInfoEnabled()) {
             log.info("Identified AFMethod (buggy method with highest {}):", aFeature);
             log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
             log.info("  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
@@ -179,7 +179,11 @@ public class DataAnalyzer {
         final String originalFileName = git.getProjectName() + ORIGINAL_AFMETHOD_FILENAME_SUFFIX;
         final Path originalOutputPath = datasetsPath.resolve(originalFileName);
         Files.writeString(originalOutputPath, methodSource);
-        log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
+        
+        // --- MODIFICA QUI ---
+        if (log.isInfoEnabled()) {
+            log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
+        }
 
         final Path refactoredDirPath = datasetsPath.resolve(REFACTORED_AFMETHOD_DIR);
         Files.createDirectories(refactoredDirPath);
@@ -189,8 +193,10 @@ public class DataAnalyzer {
         
         if (!Files.exists(refactoredFilePath)) {
             Files.createFile(refactoredFilePath);
-            log.info("  -> Created empty file for refactoring at: {}", refactoredFilePath);
-        } else {
+            if (log.isInfoEnabled()) {
+                log.info("  -> Created empty file for refactoring at: {}", refactoredFilePath);
+            }
+        } else if (log.isInfoEnabled()) {
             log.info("  -> Refactoring file already exists at: {}", refactoredFilePath);
         }
     }

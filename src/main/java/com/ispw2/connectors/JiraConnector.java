@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class JiraConnector {
@@ -53,9 +52,10 @@ public class JiraConnector {
         }
 
         releases.sort(Comparator.naturalOrder());
+        
         return IntStream.range(0, releases.size())
                 .mapToObj(i -> new ProjectRelease(releases.get(i).name(), releases.get(i).releaseDate(), i + 1))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<JiraTicket> getBugTickets() throws IOException {
@@ -84,7 +84,9 @@ public class JiraConnector {
             
             total = response.getInt("total");
             startAt += issues.length();
-            log.info("  -> Fetched {} of {} tickets...", startAt, total);
+            if (log.isInfoEnabled()) {
+                log.info("  -> Fetched {} of {} tickets...", startAt, total);
+            }
         } while (startAt < total);
         
         log.info("Total valid bug tickets fetched: {}", tickets.size());

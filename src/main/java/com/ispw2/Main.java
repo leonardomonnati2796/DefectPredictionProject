@@ -1,8 +1,7 @@
 package com.ispw2;
 
 import com.ispw2.analysis.DataAnalyzer;
-import com.ispw2.analysis.WhatIfSimulator;
-import com.ispw2.classification.ClassifierRunner;
+import com.ispw2.analysis.FeatureComparer;
 import com.ispw2.connectors.GitConnector;
 import com.ispw2.connectors.JiraConnector;
 import com.ispw2.model.ProjectRelease;
@@ -11,7 +10,6 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import weka.classifiers.Classifier;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,7 +55,7 @@ public class Main {
                 try {
                     runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
                 } catch (Exception e) {
-                    log.error("An error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
+                    log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
                 }
             }
 
@@ -68,14 +66,14 @@ public class Main {
         log.info("All projects processed and evaluated successfully.");
     }
 
-    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsBasePath) throws IOException, GitAPIException {
+    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException, GitAPIException {
         log.info("---------------------------------------------------------");
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
 
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
         final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
-        final String repoPath = Paths.get(gitProjectsBasePath, project.name()).toString();
+        final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
         final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
 
         final GitConnector git = new GitConnector(project.name(), project.gitUrl(), repoPath);
@@ -85,35 +83,42 @@ public class Main {
         final List<ProjectRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
 
-        generateDatasetIfNotExists(project, datasetsBasePath, git, jira, releases, releaseCommits);
+        generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        try {
-            final ClassifierRunner runner = new ClassifierRunner(processedArffPath, modelPath);
-            final Classifier bestModel = runner.getBestClassifier();
-            
-            final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
-            final String aFeature = analyzer.findAndSaveActionableMethod();
-            
-            final WhatIfSimulator simulator = new WhatIfSimulator(processedArffPath, bestModel, aFeature);
-            simulator.runFullDatasetSimulation();
-        } catch (Exception e) {
-            log.error("An error occurred during classification or simulation for project {}", project.name(), e);
-        }
+        // Il blocco try-catch è stato estratto nel metodo seguente.
+        runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, modelPath, datasetsBasePath, git, releaseCommits);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
-    private static void generateDatasetIfNotExists(final Project project, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) throws IOException, GitAPIException {
+    // Questo metodo ausiliario contiene la logica estratta.
+    private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String modelPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
+        try {
+            final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
+            analyzer.findAndSaveActionableMethod();
+
+            final String originalMethodPath = Paths.get(datasetsBasePath, projectName + "_AFMethod.txt").toString();
+            final String refactoredMethodPath = Paths.get(datasetsBasePath, "AFMethod_refactored", projectName + "_AFMethod_refactored.txt").toString();
+            
+            final FeatureComparer comparer = new FeatureComparer();
+            comparer.compareMethods(originalMethodPath, refactoredMethodPath);
+
+        } catch (Exception e) {
+            log.error("An error occurred during classification or simulation for project {}", projectName, e);
+        }
+    }
+
+    private static void generateDatasetIfNotExists(final String projectName, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) {
         log.info("[Milestone 1, Step 1] Checking for Dataset...");
-        final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
+        final String originalCsvPath = Paths.get(datasetsBasePath, projectName + ".csv").toString();
         final File datasetFile = new File(originalCsvPath);
         
         if (datasetFile.exists() && datasetFile.length() > 0) {
             log.info("Dataset already exists. Skipping generation.");
         } else {
             log.info("Dataset not found or is empty. Generating...");
-            final DatasetGenerator generator = new DatasetGenerator(project.name(), git, jira, releases, releaseCommits);
+            final DatasetGenerator generator = new DatasetGenerator(projectName, git, jira, releases, releaseCommits);
             generator.generateCsv(datasetsBasePath);
             log.info("Dataset generation complete.");
         }
@@ -130,7 +135,6 @@ public class Main {
                 processor.processData();
                 log.info("Data preprocessing complete. Output: {}", processedArffPath);
             } catch (Exception e) {
-                // Converting checked exception from Weka to a more common one
                 throw new IOException("Failed to preprocess data", e);
             }
         }

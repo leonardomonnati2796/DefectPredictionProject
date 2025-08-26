@@ -49,7 +49,7 @@ public class DatasetGenerator {
         this.releaseCommits = releaseCommits;
     }
 
-    public void generateCsv(final String basePath) throws IOException, GitAPIException {
+    public void generateCsv(final String basePath) {
         final String csvFilePath = Paths.get(basePath, this.projectName + ".csv").toString();
 
         try {
@@ -65,8 +65,10 @@ public class DatasetGenerator {
             writeToCsv(csvFilePath, csvData);
 
         } catch (IOException | GitAPIException e) {
+            // --- MODIFICA 1 ---
+            // L'eccezione viene loggata e rilanciata con un messaggio contestuale.
             log.error("Error during dataset generation for {}", this.projectName, e);
-            throw e;
+            throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
         }
     }
     
@@ -177,11 +179,11 @@ public class DatasetGenerator {
     private double calculateProportionCoefficient(final List<JiraTicket> tickets) {
         final List<Double> pValues = tickets.stream()
                 .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
-                // --- MODIFICA QUI ---
-                // Il cast (double) assicura che la divisione non sia intera.
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
-                .collect(Collectors.toList());
+                // --- MODIFICA 2 ---
+                // Sostituito .collect(Collectors.toList()) con il più moderno .toList()
+                .toList();
         if (pValues.isEmpty()) return PROPORTION_DEFAULT_COEFFICIENT;
         
         final int size = pValues.size();

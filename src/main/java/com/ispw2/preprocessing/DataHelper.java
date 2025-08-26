@@ -3,6 +3,8 @@ package com.ispw2.preprocessing;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.Instance;
@@ -17,6 +19,10 @@ import java.util.List;
 import java.util.Optional;
 
 public final class DataHelper {
+
+    // --- MODIFICATION HERE ---
+    // Added a logger instance.
+    private static final Logger log = LoggerFactory.getLogger(DataHelper.class);
 
     private DataHelper() {}
 
@@ -49,8 +55,9 @@ public final class DataHelper {
                     defectiveCount++;
                 }
             } catch (Exception e) {
-                // Log or handle exception if a single instance fails classification
-                System.err.println("Could not classify instance: " + e.getMessage());
+                // --- MODIFICATION HERE ---
+                // Replaced System.err with a logger warning.
+                log.warn("Could not classify instance. Skipping. Reason: {}", e.getMessage());
             }
         }
         return defectiveCount;

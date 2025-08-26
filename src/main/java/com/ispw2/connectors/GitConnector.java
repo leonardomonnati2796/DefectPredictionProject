@@ -90,6 +90,8 @@ public class GitConnector {
         }
     }
     
+    // --- MODIFICA QUI ---
+    // Il metodo è stato semplificato per ridurre la complessità cognitiva.
     public Map<String, RevCommit> getReleaseCommits(final List<ProjectRelease> releases) throws IOException {
         final Map<String, RevCommit> releaseCommits = new HashMap<>();
         final Map<String, Ref> tagMap = new HashMap<>();
@@ -103,14 +105,8 @@ public class GitConnector {
 
         try (RevWalk walk = new RevWalk(repository)) {
             for (final ProjectRelease release : releases) {
-                final String releaseName = release.name();
-                Ref tagRef = null;
-                if (tagMap.containsKey(releaseName)) tagRef = tagMap.get(releaseName);
-                else if (tagMap.containsKey("v" + releaseName)) tagRef = tagMap.get("v" + releaseName);
-                else if (tagMap.containsKey("release-" + releaseName)) tagRef = tagMap.get("release-" + releaseName);
-                else if (tagMap.containsKey(this.projectName.toLowerCase() + "-" + releaseName)) {
-                    tagRef = tagMap.get(this.projectName.toLowerCase() + "-" + releaseName);
-                }
+                // La logica complessa è ora in un metodo separato.
+                final Ref tagRef = findTagRef(release.name(), tagMap);
                 if (tagRef != null) {
                     releaseCommits.put(release.name(), walk.parseCommit(tagRef.getObjectId()));
                 }
@@ -119,13 +115,30 @@ public class GitConnector {
         return releaseCommits;
     }
 
+    // --- NUOVO METODO AUSILIARIO ---
+    // Questo metodo contiene la logica per trovare il tag corretto,
+    // eliminando la catena di if-else if dal metodo principale.
+    private Ref findTagRef(String releaseName, Map<String, Ref> tagMap) {
+        // Lista dei possibili formati per il nome del tag
+        final List<String> tagPatterns = Arrays.asList(
+            releaseName,
+            "v" + releaseName,
+            "release-" + releaseName,
+            this.projectName.toLowerCase() + "-" + releaseName
+        );
+
+        for (String pattern : tagPatterns) {
+            if (tagMap.containsKey(pattern)) {
+                return tagMap.get(pattern);
+            }
+        }
+        return null;
+    }
+
     public Map<String, List<String>> getBugToMethodsMap(final List<JiraTicket> tickets) throws IOException {
         final Map<String, List<String>> bugToMethods = new HashMap<>();
         try (RevWalk revWalk = new RevWalk(repository)) {
             for (final JiraTicket ticket : tickets) {
-                // --- MODIFICA QUI ---
-                // Il ciclo è stato ristrutturato per usare una struttura 'if' annidata
-                // invece di due istruzioni 'continue' separate.
                 if (ticket.getFixCommitHash() != null) {
                     final RevCommit commit = revWalk.parseCommit(repository.resolve(ticket.getFixCommitHash()));
                     if (commit.getParentCount() > 0) {
