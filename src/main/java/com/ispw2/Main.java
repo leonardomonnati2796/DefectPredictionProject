@@ -52,19 +52,27 @@ public class Main {
                 log.info("Output for git clones: {}", gitProjectsPath);
             }
 
-            for (final Project project : PROJECTS_TO_ANALYZE) {
-                try {
-                    runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
-                } catch (Exception e) {
-                    log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
-                }
-            }
+            // --- MODIFICA QUI ---
+            // Il ciclo for è stato sostituito da una chiamata al nuovo metodo.
+            processAllProjects(datasetsPath, gitProjectsPath);
 
         } catch (final IOException e) {
             log.error("A fatal I/O error occurred while setting up directories.", e);
         }
 
         log.info("All projects processed and evaluated successfully.");
+    }
+
+    // --- NUOVO METODO ESTRATTO ---
+    // Contiene la logica per iterare ed eseguire il pipeline per ogni progetto.
+    private static void processAllProjects(Path datasetsPath, Path gitProjectsPath) {
+        for (final Project project : PROJECTS_TO_ANALYZE) {
+            try {
+                runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
+            } catch (Exception e) {
+                log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
+            }
+        }
     }
 
     private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
@@ -86,14 +94,11 @@ public class Main {
         generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        // --- MODIFICA QUI ---
-        // Il blocco try-catch annidato è stato estratto nel metodo seguente.
         runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
-    // --- NUOVO METODO CHE CONTIENE IL SECONDO BLOCCO TRY-CATCH ---
     private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
             final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);

@@ -83,8 +83,8 @@ public class WhatIfSimulator {
 
     private void analyzeResults(final Instances bPlus, final Instances b) {
         log.info("[Milestone 2, Step 13] Final Analysis...");
-        final int defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
-        final int defectsInB = DataHelper.countDefective(bClassifier, b);
+        final double defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
+        final double defectsInB = DataHelper.countDefective(bClassifier, b);
         
         if (defectsInBplus > 0) {
             final double preventable = defectsInBplus - defectsInB;
