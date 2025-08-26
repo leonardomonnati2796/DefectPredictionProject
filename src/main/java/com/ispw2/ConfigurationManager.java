@@ -21,7 +21,6 @@ public class ConfigurationManager {
     private static final String KEY_RANDOMFOREST_ITERATIONS = "tuner.randomforest.iterations_range";
 
     // Eager Initialization of the Singleton
-    // L'istanza viene creata subito, in modo sicuro e una sola volta.
     private static final ConfigurationManager instance = new ConfigurationManager();
     
     private final Properties properties;
@@ -39,8 +38,6 @@ public class ConfigurationManager {
         }
     }
 
-    // Simplified getInstance method
-    // Non è più necessario il controllo 'if (instance == null)' né 'synchronized'.
     public static ConfigurationManager getInstance() {
         return instance;
     }

@@ -102,10 +102,10 @@ public class DataPreprocessor {
     private ArrayList<Attribute> defineWekaAttributes(final List<String> headers) {
         final ArrayList<Attribute> attributes = new ArrayList<>();
         for (final String header : headers) {
+            // --- MODIFICA QUI ---
+            // I 'case' che eseguono lo stesso codice sono stati uniti in una sola riga.
             switch(header) {
-                case PROJECT_COLUMN:
-                case METHOD_NAME_COLUMN:
-                case RELEASE_COLUMN:
+                case PROJECT_COLUMN, METHOD_NAME_COLUMN, RELEASE_COLUMN:
                     attributes.add(new Attribute(header, (List<String>) null)); // String attribute
                     break;
                 case IS_BUGGY_COLUMN:

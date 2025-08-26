@@ -6,12 +6,11 @@ import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.Instances;
+import java.io.IOException;
 
 public class WhatIfSimulator {
     private static final Logger log = LoggerFactory.getLogger(WhatIfSimulator.class);
     
-    // --- MODIFICHE QUI ---
-    // Costanti definite per la formattazione della tabella
     private static final String TABLE_SEPARATOR = "------------------------------------------------------------------";
     private static final String TABLE_HEADER_FORMAT = "| %-20s | %-15s | %-15s |";
     private static final String TABLE_ROW_FORMAT = "| %-20s | %-15d | %-15d |";
@@ -27,7 +26,7 @@ public class WhatIfSimulator {
         this.aFeatureName = aFeatureName;
     }
 
-    public void runFullDatasetSimulation() throws Exception {
+    public void runFullDatasetSimulation() throws IOException {
         this.datasetA = DataHelper.loadArff(processedArffPath);
         this.datasetA.setClassIndex(this.datasetA.numAttributes() - 1);
 
@@ -59,7 +58,9 @@ public class WhatIfSimulator {
         return datasetB;
     }
 
-    private void printResultsTable(final Instances bPlus, final Instances b, final Instances c) throws Exception {
+    // --- MODIFICA QUI ---
+    // Rimossa la dichiarazione "throws Exception" non necessaria.
+    private void printResultsTable(final Instances bPlus, final Instances b, final Instances c) {
         log.info("[Milestone 2, Step 12] Predicting Defectiveness...");
         final int defectsInA = DataHelper.countDefective(this.bClassifier, this.datasetA);
         final int defectsInBplus = DataHelper.countDefective(this.bClassifier, bPlus);
@@ -78,14 +79,18 @@ public class WhatIfSimulator {
         log.info(TABLE_SEPARATOR);
     }
 
-    private void analyzeResults(final Instances bPlus, final Instances b) throws Exception {
+    // --- MODIFICA QUI ---
+    // Rimossa la dichiarazione "throws Exception" non necessaria.
+    private void analyzeResults(final Instances bPlus, final Instances b) {
         log.info("[Milestone 2, Step 13] Final Analysis...");
         final int defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
         final int defectsInB = DataHelper.countDefective(bClassifier, b);
         
         if (defectsInBplus > 0) {
             final double preventable = defectsInBplus - defectsInB;
-            final double reduction = (preventable / (double) defectsInBplus) * 100;
+            // --- MODIFICA QUI ---
+            // Rimosso il cast "(double)" non necessario perché 'preventable' è già un double.
+            final double reduction = (preventable / defectsInBplus) * 100;
             log.info("Simulating code smell reduction dropped predicted defects from {} to {} (a {}% reduction).", defectsInBplus, defectsInB, String.format("%.1f", reduction));
             log.info("ANSWER: An estimated {} buggy methods could have been prevented by reducing {}.", String.format("%.0f", preventable), aFeatureName);
         } else {

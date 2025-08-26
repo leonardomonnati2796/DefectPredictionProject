@@ -1,5 +1,6 @@
 package com.ispw2.connectors;
 
+import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.ispw2.model.JiraTicket;
@@ -34,6 +35,8 @@ import java.util.regex.Pattern;
 
 public class GitConnector {
     private static final Logger log = LoggerFactory.getLogger(GitConnector.class);
+    private static final String METHOD_KEY_SEPARATOR = "::";
+
     private final String projectName;
     private final String remoteUrl;
     private final String localPath;
@@ -120,18 +123,23 @@ public class GitConnector {
         final Map<String, List<String>> bugToMethods = new HashMap<>();
         try (RevWalk revWalk = new RevWalk(repository)) {
             for (final JiraTicket ticket : tickets) {
-                if (ticket.getFixCommitHash() == null) continue;
-                final RevCommit commit = revWalk.parseCommit(repository.resolve(ticket.getFixCommitHash()));
-                if (commit.getParentCount() == 0) continue;
-                final RevCommit parent = revWalk.parseCommit(commit.getParent(0).getId());
-                final List<DiffEntry> diffs = getDiff(parent, commit);
-                final List<String> affectedMethods = new ArrayList<>();
-                for (final DiffEntry diff : diffs) {
-                    if (diff.getChangeType() == DiffEntry.ChangeType.MODIFY && diff.getNewPath().endsWith(".java")) {
-                        affectedMethods.addAll(getModifiedMethods(diff, commit));
+                // --- MODIFICA QUI ---
+                // Il ciclo è stato ristrutturato per usare una struttura 'if' annidata
+                // invece di due istruzioni 'continue' separate.
+                if (ticket.getFixCommitHash() != null) {
+                    final RevCommit commit = revWalk.parseCommit(repository.resolve(ticket.getFixCommitHash()));
+                    if (commit.getParentCount() > 0) {
+                        final RevCommit parent = revWalk.parseCommit(commit.getParent(0).getId());
+                        final List<DiffEntry> diffs = getDiff(parent, commit);
+                        final List<String> affectedMethods = new ArrayList<>();
+                        for (final DiffEntry diff : diffs) {
+                            if (diff.getChangeType() == DiffEntry.ChangeType.MODIFY && diff.getNewPath().endsWith(".java")) {
+                                affectedMethods.addAll(getModifiedMethods(diff, commit));
+                            }
+                        }
+                        bugToMethods.put(ticket.getKey(), affectedMethods);
                     }
                 }
-                bugToMethods.put(ticket.getKey(), affectedMethods);
             }
         }
         return bugToMethods;
@@ -146,7 +154,8 @@ public class GitConnector {
         final List<MethodDeclaration> methods;
         try {
             methods = new ArrayList<>(StaticJavaParser.parse(fileContent).findAll(MethodDeclaration.class));
-        } catch (final Exception e) { 
+        } catch (final ParseProblemException e) { 
+            log.warn("Failed to parse Java file during diff: {}", newPath);
             return Collections.emptyList();
         }
 
@@ -157,7 +166,7 @@ public class GitConnector {
                 for (final MethodDeclaration method : methods) {
                     if (method.getRange().isPresent() &&
                         Math.max(method.getRange().get().begin.line, edit.getBeginB()) <= Math.min(method.getRange().get().end.line, edit.getEndB())) {
-                        modifiedMethods.add(newPath + "::" + method.getSignature().asString());
+                        modifiedMethods.add(newPath + METHOD_KEY_SEPARATOR + method.getSignature().asString());
                     }
                 }
             }

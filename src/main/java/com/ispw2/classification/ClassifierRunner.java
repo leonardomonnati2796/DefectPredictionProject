@@ -24,6 +24,10 @@ public class ClassifierRunner {
     private static final int NUM_FOLDS = 10;
     private static final int NUM_REPEATS = 10;
 
+    // --- MODIFICA QUI ---
+    // Costante definita per il separatore della tabella.
+    private static final String TABLE_SEPARATOR = "----------------------------------------------------------------------";
+
     private final String processedArffPath;
     private final String modelPath;
     private Instances data;
@@ -48,7 +52,6 @@ public class ClassifierRunner {
         loadData();
         
         if (!isDataSufficientForClassification()) {
-            // Return a default classifier if data is not sufficient
             return new RandomForest();
         }
 
@@ -92,9 +95,9 @@ public class ClassifierRunner {
         Classifier bestClassifier = null;
         double bestAuc = 0.0;
 
-        log.info("----------------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
         log.info(String.format("%-20s | %-10s | %-10s | %-10s | %-10s", "Classifier", "AUC", "Precision", "Recall", "Kappa"));
-        log.info("----------------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
 
         for (final Classifier classifier : classifiers) {
             final Evaluation eval = evaluateModel(classifier);
@@ -110,7 +113,7 @@ public class ClassifierRunner {
                 bestClassifier = classifier;
             }
         }
-        log.info("----------------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
         log.info("Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
         return bestClassifier;
     }

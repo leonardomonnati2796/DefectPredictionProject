@@ -66,7 +66,6 @@ public class DatasetGenerator {
 
         } catch (IOException | GitAPIException e) {
             log.error("Error during dataset generation for {}", this.projectName, e);
-            // Re-throw to allow the caller to handle it
             throw e;
         }
     }
@@ -146,10 +145,8 @@ public class DatasetGenerator {
         int fv = ticket.getFixedVersionIndex();
         int ov = ticket.getOpeningVersionIndex();
 
-        // If IV is not set, estimate it using the proportion formula
         if (iv <= 0 && fv > 0 && ov > 0 && fv > ov) {
             iv = (int) Math.round(fv - (fv - ov) * pMedian);
-            // Ensure IV is at least 1
             return Math.max(1, iv);
         }
         return iv;
@@ -180,6 +177,8 @@ public class DatasetGenerator {
     private double calculateProportionCoefficient(final List<JiraTicket> tickets) {
         final List<Double> pValues = tickets.stream()
                 .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
+                // --- MODIFICA QUI ---
+                // Il cast (double) assicura che la divisione non sia intera.
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
                 .collect(Collectors.toList());
