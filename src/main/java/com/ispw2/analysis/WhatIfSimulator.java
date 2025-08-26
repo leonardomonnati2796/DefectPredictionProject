@@ -58,8 +58,6 @@ public class WhatIfSimulator {
         return datasetB;
     }
 
-    // --- MODIFICA QUI ---
-    // Rimossa la dichiarazione "throws Exception" non necessaria.
     private void printResultsTable(final Instances bPlus, final Instances b, final Instances c) {
         log.info("[Milestone 2, Step 12] Predicting Defectiveness...");
         final int defectsInA = DataHelper.countDefective(this.bClassifier, this.datasetA);
@@ -67,20 +65,22 @@ public class WhatIfSimulator {
         final int defectsInB = DataHelper.countDefective(this.bClassifier, b);
         final int defectsInC = DataHelper.countDefective(this.bClassifier, c);
 
-        log.info(TABLE_SEPARATOR);
-        log.info("                   DEFECT PREDICTION ANALYSIS RESULTS                   ");
-        log.info(TABLE_SEPARATOR);
-        log.info(String.format(TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));
-        log.info(TABLE_SEPARATOR);
-        log.info(String.format(TABLE_ROW_FORMAT, "A (Full Dataset)", this.datasetA.numInstances(), defectsInA));
-        log.info(String.format(TABLE_ROW_FORMAT, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
-        log.info(String.format(TABLE_ROW_FORMAT, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
-        log.info(String.format(TABLE_ROW_FORMAT, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
-        log.info(TABLE_SEPARATOR);
+        // --- MODIFICA QUI ---
+        // L'intero blocco di log per la tabella è ora condizionale.
+        if (log.isInfoEnabled()) {
+            log.info(TABLE_SEPARATOR);
+            log.info("                   DEFECT PREDICTION ANALYSIS RESULTS                   ");
+            log.info(TABLE_SEPARATOR);
+            log.info(String.format(TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));
+            log.info(TABLE_SEPARATOR);
+            log.info(String.format(TABLE_ROW_FORMAT, "A (Full Dataset)", this.datasetA.numInstances(), defectsInA));
+            log.info(String.format(TABLE_ROW_FORMAT, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
+            log.info(String.format(TABLE_ROW_FORMAT, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
+            log.info(String.format(TABLE_ROW_FORMAT, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
+            log.info(TABLE_SEPARATOR);
+        }
     }
 
-    // --- MODIFICA QUI ---
-    // Rimossa la dichiarazione "throws Exception" non necessaria.
     private void analyzeResults(final Instances bPlus, final Instances b) {
         log.info("[Milestone 2, Step 13] Final Analysis...");
         final int defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
@@ -88,11 +88,14 @@ public class WhatIfSimulator {
         
         if (defectsInBplus > 0) {
             final double preventable = defectsInBplus - defectsInB;
-            // --- MODIFICA QUI ---
-            // Rimosso il cast "(double)" non necessario perché 'preventable' è già un double.
             final double reduction = (preventable / defectsInBplus) * 100;
-            log.info("Simulating code smell reduction dropped predicted defects from {} to {} (a {}% reduction).", defectsInBplus, defectsInB, String.format("%.1f", reduction));
-            log.info("ANSWER: An estimated {} buggy methods could have been prevented by reducing {}.", String.format("%.0f", preventable), aFeatureName);
+
+            // --- MODIFICA QUI ---
+            // Le chiamate di log sono state rese condizionali.
+            if (log.isInfoEnabled()) {
+                log.info("Simulating code smell reduction dropped predicted defects from {} to {} (a {}% reduction).", defectsInBplus, defectsInB, String.format("%.1f", reduction));
+                log.info("ANSWER: An estimated {} buggy methods could have been prevented by reducing {}.", String.format("%.0f", preventable), aFeatureName);
+            }
         } else {
             log.info("No defects were predicted in the 'at-risk' group (B+).");
         }

@@ -75,8 +75,6 @@ public class ClassifierRunner {
         this.data = loader.getDataSet();
         this.data.setClassIndex(this.data.numAttributes() - 1);
         
-        // --- MODIFICA QUI ---
-        // Aggiunto controllo per ottimizzazione.
         if (log.isInfoEnabled()) {
             log.info("Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
         }
@@ -101,8 +99,6 @@ public class ClassifierRunner {
         Classifier bestClassifier = null;
         double bestAuc = 0.0;
         
-        // --- MODIFICA QUI ---
-        // Aggiunto controllo per ottimizzazione.
         if (log.isInfoEnabled()) {
             log.info(TABLE_SEPARATOR);
             log.info(String.format(TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
@@ -116,8 +112,6 @@ public class ClassifierRunner {
             final double recall = eval.weightedRecall();
             final double kappa = eval.kappa();
             
-            // --- MODIFICA QUI ---
-            // Aggiunto controllo per ottimizzazione.
             if (log.isInfoEnabled()) {
                 log.info(String.format(TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
             }

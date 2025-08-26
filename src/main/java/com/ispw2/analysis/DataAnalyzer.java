@@ -125,8 +125,6 @@ public class DataAnalyzer {
         final Optional<CSVRecord> targetRecord = buggyMethodsInLastRelease.stream()
                 .max(Comparator.comparingDouble(r -> Double.parseDouble(r.get(aFeature))));
         
-        // --- MODIFICA QUI ---
-        // Aggiunto il controllo 'isInfoEnabled' per ottimizzare le chiamate di log.
         if (targetRecord.isPresent() && log.isInfoEnabled()) {
             log.info("Identified AFMethod (buggy method with highest {}):", aFeature);
             log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
@@ -180,7 +178,6 @@ public class DataAnalyzer {
         final Path originalOutputPath = datasetsPath.resolve(originalFileName);
         Files.writeString(originalOutputPath, methodSource);
         
-        // --- MODIFICA QUI ---
         if (log.isInfoEnabled()) {
             log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
         }

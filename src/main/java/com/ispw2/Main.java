@@ -6,7 +6,6 @@ import com.ispw2.connectors.GitConnector;
 import com.ispw2.connectors.JiraConnector;
 import com.ispw2.model.ProjectRelease;
 import com.ispw2.preprocessing.DataPreprocessor;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,16 +67,16 @@ public class Main {
         log.info("All projects processed and evaluated successfully.");
     }
 
-    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsBasePath) throws IOException, GitAPIException {
+    // --- MODIFICA QUI ---
+    // Rimossa la dichiarazione "GitAPIException" perché non è più lanciata dal corpo del metodo.
+    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
         log.info("---------------------------------------------------------");
-        log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
+        log.info("--- STARTING PIPLINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
 
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
         final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
-        final String repoPath = Paths.get(gitProjectsBasePath, project.name()).toString();
-        // --- MODIFICA QUI ---
-        // La definizione di 'modelPath' è stata rimossa perché non più utilizzata.
+        final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
 
         final GitConnector git = new GitConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
@@ -89,17 +88,11 @@ public class Main {
         generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        // La logica di analisi è estratta nel metodo seguente.
-        // --- MODIFICA QUI ---
-        // Il parametro 'modelPath' è stato rimosso dalla chiamata.
         runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
         
-        log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
+        log.info("--- FINISHED PIPLINE FOR: {} ---", project.name());
     }
 
-    // Questo metodo ausiliario contiene la logica estratta.
-    // --- MODIFICA QUI ---
-    // Il parametro 'modelPath' è stato rimosso dalla firma del metodo.
     private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
             final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);

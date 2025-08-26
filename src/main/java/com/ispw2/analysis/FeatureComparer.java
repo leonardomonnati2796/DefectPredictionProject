@@ -13,8 +13,6 @@ import java.util.*;
 public class FeatureComparer {
     private static final Logger log = LoggerFactory.getLogger(FeatureComparer.class);
     
-    // --- MODIFICA QUI ---
-    // Costante definita per il separatore della tabella.
     private static final String TABLE_SEPARATOR = "-----------------------------------------------------------------";
 
     public void compareMethods(final String originalFilePath, final String refactoredFilePath) throws IOException {
@@ -43,25 +41,29 @@ public class FeatureComparer {
     }
 
     private void printComparison(final Map<String, Number> before, final Map<String, Number> after) {
-        log.info(TABLE_SEPARATOR);
-        log.info(String.format("%-25s | %-15s | %-15s | %s", "Feature", "Before Refactor", "After Refactor", "Change"));
-        log.info(TABLE_SEPARATOR);
+        // --- MODIFICA QUI ---
+        // L'intero blocco di log è stato reso condizionale per ottimizzazione.
+        if (log.isInfoEnabled()) {
+            log.info(TABLE_SEPARATOR);
+            log.info(String.format("%-25s | %-15s | %-15s | %s", "Feature", "Before Refactor", "After Refactor", "Change"));
+            log.info(TABLE_SEPARATOR);
 
-        final List<String> featureNames = Arrays.asList(
-            Metrics.LOC, 
-            Metrics.CYCLOMATIC_COMPLEXITY, 
-            Metrics.PARAMETER_COUNT
-        );
+            final List<String> featureNames = Arrays.asList(
+                Metrics.LOC, 
+                Metrics.CYCLOMATIC_COMPLEXITY, 
+                Metrics.PARAMETER_COUNT
+            );
 
-        for(final String feature : featureNames) {
-            final Number beforeNum = before.get(feature);
-            final Number afterNum = after.get(feature);
-            final String beforeValue = (beforeNum != null) ? beforeNum.toString() : "N/A";
-            final String afterValue = (afterNum != null) ? afterNum.toString() : "N/A";
-            final String marker = !beforeValue.equals(afterValue) ? "MODIFIED" : "";
-            
-            log.info(String.format("%-25s | %-15s | %-15s | %s", feature, beforeValue, afterValue, marker));
+            for(final String feature : featureNames) {
+                final Number beforeNum = before.get(feature);
+                final Number afterNum = after.get(feature);
+                final String beforeValue = (beforeNum != null) ? beforeNum.toString() : "N/A";
+                final String afterValue = (afterNum != null) ? afterNum.toString() : "N/A";
+                final String marker = !beforeValue.equals(afterValue) ? "MODIFIED" : "";
+                
+                log.info(String.format("%-25s | %-15s | %-15s | %s", feature, beforeValue, afterValue, marker));
+            }
+            log.info(TABLE_SEPARATOR);
         }
-        log.info(TABLE_SEPARATOR);
     }
 }
