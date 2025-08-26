@@ -20,7 +20,10 @@ public class ConfigurationManager {
     private static final String KEY_IBK_K_RANGE = "tuner.ibk.k_range";
     private static final String KEY_RANDOMFOREST_ITERATIONS = "tuner.randomforest.iterations_range";
 
-    private static ConfigurationManager instance;
+    // Eager Initialization of the Singleton
+    // L'istanza viene creata subito, in modo sicuro e una sola volta.
+    private static final ConfigurationManager instance = new ConfigurationManager();
+    
     private final Properties properties;
 
     private ConfigurationManager() {
@@ -36,10 +39,9 @@ public class ConfigurationManager {
         }
     }
 
-    public static synchronized ConfigurationManager getInstance() {
-        if (instance == null) {
-            instance = new ConfigurationManager();
-        }
+    // Simplified getInstance method
+    // Non è più necessario il controllo 'if (instance == null)' né 'synchronized'.
+    public static ConfigurationManager getInstance() {
         return instance;
     }
 

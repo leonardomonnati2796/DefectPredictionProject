@@ -12,6 +12,10 @@ import java.util.*;
 
 public class FeatureComparer {
     private static final Logger log = LoggerFactory.getLogger(FeatureComparer.class);
+    
+    // --- MODIFICA QUI ---
+    // Costante definita per il separatore della tabella.
+    private static final String TABLE_SEPARATOR = "-----------------------------------------------------------------";
 
     public void compareMethods(final String originalFilePath, final String refactoredFilePath) throws IOException {
         log.info("[Milestone 2, Step 7-9] Comparing Features of Original vs. Refactored Method...");
@@ -39,9 +43,9 @@ public class FeatureComparer {
     }
 
     private void printComparison(final Map<String, Number> before, final Map<String, Number> after) {
-        log.info("-----------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
         log.info(String.format("%-25s | %-15s | %-15s | %s", "Feature", "Before Refactor", "After Refactor", "Change"));
-        log.info("-----------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
 
         final List<String> featureNames = Arrays.asList(
             Metrics.LOC, 
@@ -58,6 +62,6 @@ public class FeatureComparer {
             
             log.info(String.format("%-25s | %-15s | %-15s | %s", feature, beforeValue, afterValue, marker));
         }
-        log.info("-----------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
     }
 }

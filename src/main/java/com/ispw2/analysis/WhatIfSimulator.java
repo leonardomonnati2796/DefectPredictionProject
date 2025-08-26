@@ -9,6 +9,13 @@ import weka.core.Instances;
 
 public class WhatIfSimulator {
     private static final Logger log = LoggerFactory.getLogger(WhatIfSimulator.class);
+    
+    // --- MODIFICHE QUI ---
+    // Costanti definite per la formattazione della tabella
+    private static final String TABLE_SEPARATOR = "------------------------------------------------------------------";
+    private static final String TABLE_HEADER_FORMAT = "| %-20s | %-15s | %-15s |";
+    private static final String TABLE_ROW_FORMAT = "| %-20s | %-15d | %-15d |";
+
     private final String processedArffPath;
     private Instances datasetA;
     private final Classifier bClassifier;
@@ -59,16 +66,16 @@ public class WhatIfSimulator {
         final int defectsInB = DataHelper.countDefective(this.bClassifier, b);
         final int defectsInC = DataHelper.countDefective(this.bClassifier, c);
 
-        log.info("------------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
         log.info("                   DEFECT PREDICTION ANALYSIS RESULTS                   ");
-        log.info("------------------------------------------------------------------");
-        log.info(String.format("| %-20s | %-15s | %-15s |", "Dataset", "Total Instances", "Predicted Defects"));
-        log.info("------------------------------------------------------------------");
-        log.info(String.format("| %-20s | %-15d | %-15d |", "A (Full Dataset)", this.datasetA.numInstances(), defectsInA));
-        log.info(String.format("| %-20s | %-15d | %-15d |", "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
-        log.info(String.format("| %-20s | %-15d | %-15d |", "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
-        log.info(String.format("| %-20s | %-15d | %-15d |", "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
-        log.info("------------------------------------------------------------------");
+        log.info(TABLE_SEPARATOR);
+        log.info(String.format(TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));
+        log.info(TABLE_SEPARATOR);
+        log.info(String.format(TABLE_ROW_FORMAT, "A (Full Dataset)", this.datasetA.numInstances(), defectsInA));
+        log.info(String.format(TABLE_ROW_FORMAT, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
+        log.info(String.format(TABLE_ROW_FORMAT, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
+        log.info(String.format(TABLE_ROW_FORMAT, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
+        log.info(TABLE_SEPARATOR);
     }
 
     private void analyzeResults(final Instances bPlus, final Instances b) throws Exception {
