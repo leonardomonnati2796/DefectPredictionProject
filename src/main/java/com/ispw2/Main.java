@@ -67,11 +67,9 @@ public class Main {
         log.info("All projects processed and evaluated successfully.");
     }
 
-    // --- MODIFICA QUI ---
-    // Rimossa la dichiarazione "GitAPIException" perché non è più lanciata dal corpo del metodo.
     private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
         log.info("---------------------------------------------------------");
-        log.info("--- STARTING PIPLINE FOR: {} ---", project.name());
+        log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
 
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
@@ -88,11 +86,13 @@ public class Main {
         generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
+        // Il blocco try-catch è stato estratto nel metodo seguente.
         runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
         
-        log.info("--- FINISHED PIPLINE FOR: {} ---", project.name());
+        log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
+    // Questo metodo ausiliario contiene la logica estratta.
     private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
             final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
