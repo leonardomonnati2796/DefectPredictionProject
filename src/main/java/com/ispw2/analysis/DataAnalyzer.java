@@ -137,7 +137,11 @@ public class DataAnalyzer {
         log.info("[Milestone 2, Step 7] Saving AFMethod source code and preparing for refactoring...");
         final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
         if (identifierOpt.isEmpty()) {
-            log.error("Could not parse method identifier: {}", methodRecord.get(CSV_COL_METHOD_NAME));
+            // --- MODIFICA QUI ---
+            // Aggiunto controllo per ottimizzazione.
+            if (log.isErrorEnabled()) {
+                log.error("Could not parse method identifier: {}", methodRecord.get(CSV_COL_METHOD_NAME));
+            }
             return;
         }
         final MethodIdentifier identifier = identifierOpt.get();

@@ -30,7 +30,9 @@ public class MethodTracker {
         this.git = git;
     }
 
-    public List<TrackedMethod> getMethodsForRelease(final RevCommit releaseCommit) throws IOException, GitAPIException {
+    // --- MODIFICA QUI ---
+    // Rimossa la dichiarazione "GitAPIException" perché non è più lanciata dal corpo del metodo.
+    public List<TrackedMethod> getMethodsForRelease(final RevCommit releaseCommit) throws IOException {
         final String commitId = releaseCommit.getName();
         final List<String> javaFiles = git.getJavaFilesForCommit(commitId);
 
@@ -43,7 +45,9 @@ public class MethodTracker {
 
         for(final TrackedMethod method : currentMethods) {
             final CallableDeclaration<?> callable = methodAstMap.get(method);
-            calculateAllFeatures(method, callable, releaseCommit);
+            if (callable != null) {
+                calculateAllFeatures(method, callable, releaseCommit);
+            }
         }
 
         lastKnownMethods.clear();
@@ -61,7 +65,8 @@ public class MethodTracker {
             cu.findAll(CallableDeclaration.class).forEach(callable -> {
                 final String signature = callable.getSignature().asString();
                 final String fullSignatureKey = file + METHOD_KEY_SEPARATOR + signature;
-                final String id = lastKnownMethods.getOrDefault(fullSignatureKey, new TrackedMethod(UUID.randomUUID().toString(), "", "")).id();
+                final TrackedMethod existingMethod = lastKnownMethods.get(fullSignatureKey);
+                final String id = (existingMethod != null) ? existingMethod.id() : UUID.randomUUID().toString();
                 
                 final TrackedMethod trackedMethod = new TrackedMethod(id, signature, file);
                 currentMethods.add(trackedMethod);

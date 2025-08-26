@@ -87,7 +87,11 @@ public class ClassifierRunner {
         }
         final Attribute classAttribute = this.data.classAttribute();
         if (classAttribute.numValues() < 2) {
-            log.error("The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
+            // --- MODIFICA QUI ---
+            // Aggiunto controllo per ottimizzazione.
+            if (log.isErrorEnabled()) {
+                log.error("The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
+            }
             return false;
         }
         return true;
