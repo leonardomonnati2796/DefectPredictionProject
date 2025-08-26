@@ -65,8 +65,9 @@ public class DatasetGenerator {
             writeToCsv(csvFilePath, csvData);
 
         } catch (IOException | GitAPIException e) {
-            // Il blocco catch è già corretto.
-            log.error("Error during dataset generation for {}", this.projectName, e);
+            // --- MODIFICA QUI ---
+            // La riga di log è stata rimossa per evitare duplicati, mantenendo solo il rilancio dell'eccezione.
+            // La responsabilità del logging è lasciata al chiamante di alto livello (il main).
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
         }
     }

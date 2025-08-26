@@ -86,13 +86,14 @@ public class Main {
         generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        // Il blocco try-catch è stato estratto nel metodo seguente.
+        // --- MODIFICA QUI ---
+        // Il blocco try-catch annidato è stato estratto nel metodo seguente.
         runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
-    // Questo metodo ausiliario contiene la logica estratta.
+    // --- NUOVO METODO CHE CONTIENE IL SECONDO BLOCCO TRY-CATCH ---
     private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
             final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
