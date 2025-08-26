@@ -1,5 +1,6 @@
 package com.ispw2.analysis;
 
+import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import com.ispw2.ConfigurationManager;
@@ -27,6 +28,14 @@ public class DataAnalyzer {
 
     private static final Logger log = LoggerFactory.getLogger(DataAnalyzer.class);
 
+    // Constants for filenames and CSV columns
+    private static final String ORIGINAL_AFMETHOD_FILENAME_SUFFIX = "_AFMethod.txt";
+    private static final String REFACTORED_AFMETHOD_DIR = "AFMethod_refactored";
+    private static final String REFACTORED_AFMETHOD_FILENAME_SUFFIX = "_AFMethod_refactored.txt";
+    private static final String CSV_COL_METHOD_NAME = "MethodName";
+    private static final String CSV_COL_RELEASE = "Release";
+    private static final String CSV_COL_IS_BUGGY = "IsBuggy";
+
     private record MethodIdentifier(String filePath, String signature) {
         public static Optional<MethodIdentifier> fromString(final String fullIdentifier) {
             final int separator = fullIdentifier.lastIndexOf('/');
@@ -52,20 +61,24 @@ public class DataAnalyzer {
         this.releaseCommits = releaseCommits;
     }
 
-    public String findAndSaveActionableMethod() throws Exception {
-        final Instances data = DataHelper.loadArff(processedArffPath);
-        data.setClassIndex(data.numAttributes() - 1);
+    public String findAndSaveActionableMethod() throws IOException {
+        try {
+            final Instances data = DataHelper.loadArff(processedArffPath);
+            data.setClassIndex(data.numAttributes() - 1);
 
-        final String aFeature = findTopActionableFeature(data);
-        final Optional<CSVRecord> afMethodRecordOpt = findTargetMethodRecord(aFeature);
+            final String aFeature = findTopActionableFeature(data);
+            final Optional<CSVRecord> afMethodRecordOpt = findTargetMethodRecord(aFeature);
 
-        if (afMethodRecordOpt.isPresent()) {
-            saveMethodSourceToFile(afMethodRecordOpt.get());
-        } else {
-            log.warn("Skipping Step 7 as no AFMethod was identified.");
+            if (afMethodRecordOpt.isPresent()) {
+                saveMethodSourceToFile(afMethodRecordOpt.get());
+            } else {
+                log.warn("Skipping Step 7 as no AFMethod was identified.");
+            }
+            return aFeature;
+        } catch (Exception e) {
+            // Weka methods throw generic Exception, wrap it in a more common one
+            throw new IOException("Failed during data analysis.", e);
         }
-        
-        return aFeature;
     }
 
     private String findTopActionableFeature(final Instances data) throws Exception {
@@ -97,11 +110,11 @@ public class DataAnalyzer {
             return Optional.empty();
         }
 
-        final String lastReleaseName = records.get(records.size() - 1).get("Release");
+        final String lastReleaseName = records.get(records.size() - 1).get(CSV_COL_RELEASE);
         log.info("  -> Searching within the last analyzed release: {}", lastReleaseName);
 
         final List<CSVRecord> buggyMethodsInLastRelease = records.stream()
-                .filter(r -> r.get("Release").equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get("IsBuggy")))
+                .filter(r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)))
                 .toList();
 
         log.info("  -> Found {} buggy methods in this release.", buggyMethodsInLastRelease.size());
@@ -116,7 +129,7 @@ public class DataAnalyzer {
         
         if (targetRecord.isPresent()) {
             log.info("Identified AFMethod (buggy method with highest {}):", aFeature);
-            log.info("  -> MethodName: {}", targetRecord.get().get("MethodName"));
+            log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
             log.info("  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
         }
         return targetRecord;
@@ -124,14 +137,14 @@ public class DataAnalyzer {
     
     private void saveMethodSourceToFile(final CSVRecord methodRecord) {
         log.info("[Milestone 2, Step 7] Saving AFMethod source code and preparing for refactoring...");
-        final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get("MethodName"));
+        final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
         if (identifierOpt.isEmpty()) {
-            log.error("Could not parse method identifier: {}", methodRecord.get("MethodName"));
+            log.error("Could not parse method identifier: {}", methodRecord.get(CSV_COL_METHOD_NAME));
             return;
         }
         final MethodIdentifier identifier = identifierOpt.get();
         
-        final String releaseName = methodRecord.get("Release");
+        final String releaseName = methodRecord.get(CSV_COL_RELEASE);
         final RevCommit commit = releaseCommits.get(releaseName);
         if (commit == null) {
             log.error("Could not find commit for release: {}", releaseName);
@@ -140,9 +153,7 @@ public class DataAnalyzer {
 
         try {
             final String fileContent = git.getFileContent(identifier.filePath(), commit.getName());
-            if (fileContent.isEmpty()) {
-                return;
-            }
+            if (fileContent.isEmpty()) return;
 
             final Optional<String> methodSourceOpt = StaticJavaParser.parse(fileContent)
                     .findAll(CallableDeclaration.class).stream()
@@ -151,35 +162,36 @@ public class DataAnalyzer {
                     .map(CallableDeclaration::toString);
 
             if (methodSourceOpt.isPresent()) {
-                final Path datasetsPath = Paths.get(originalCsvPath).getParent();
-                
-                // Salva il file originale
-                final String originalFileName = git.getProjectName() + "_AFMethod.txt";
-                final Path originalOutputPath = datasetsPath.resolve(originalFileName);
-                Files.writeString(originalOutputPath, methodSourceOpt.get());
-                log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
-
-                // Crea la cartella e il file per il refactoring
-                final Path refactoredDirPath = datasetsPath.resolve("AFMethod_refactored");
-                Files.createDirectories(refactoredDirPath);
-                
-                final String refactoredFileName = git.getProjectName() + "_AFMethod_refactored.txt";
-                final Path refactoredFilePath = refactoredDirPath.resolve(refactoredFileName);
-                
-                if (!Files.exists(refactoredFilePath)) {
-                    Files.createFile(refactoredFilePath);
-                    log.info("  -> Created empty file for refactoring at: {}", refactoredFilePath);
-                } else {
-                    log.info("  -> Refactoring file already exists at: {}", refactoredFilePath);
-                }
-
+                handleFileSaving(methodSourceOpt.get());
             } else {
                  log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.filePath());
             }
-        } catch (final IOException e) {
+        } catch (IOException e) {
             log.error("Could not read or write file for method: {}", identifier, e);
-        } catch (final Exception e) {
-            log.error("Unexpected error parsing or saving Java source for method: {}", identifier, e);
+        } catch (ParseProblemException e) {
+            log.error("Failed to parse Java source for method: {}", identifier, e);
+        }
+    }
+
+    private void handleFileSaving(String methodSource) throws IOException {
+        final Path datasetsPath = Paths.get(originalCsvPath).getParent();
+                
+        final String originalFileName = git.getProjectName() + ORIGINAL_AFMETHOD_FILENAME_SUFFIX;
+        final Path originalOutputPath = datasetsPath.resolve(originalFileName);
+        Files.writeString(originalOutputPath, methodSource);
+        log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
+
+        final Path refactoredDirPath = datasetsPath.resolve(REFACTORED_AFMETHOD_DIR);
+        Files.createDirectories(refactoredDirPath);
+        
+        final String refactoredFileName = git.getProjectName() + REFACTORED_AFMETHOD_FILENAME_SUFFIX;
+        final Path refactoredFilePath = refactoredDirPath.resolve(refactoredFileName);
+        
+        if (!Files.exists(refactoredFilePath)) {
+            Files.createFile(refactoredFilePath);
+            log.info("  -> Created empty file for refactoring at: {}", refactoredFilePath);
+        } else {
+            log.info("  -> Refactoring file already exists at: {}", refactoredFilePath);
         }
     }
 }

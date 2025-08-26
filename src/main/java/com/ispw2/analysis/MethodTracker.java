@@ -1,5 +1,6 @@
 package com.ispw2.analysis;
 
+import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.CallableDeclaration;
@@ -23,6 +24,8 @@ public class MethodTracker {
     private final GitConnector git;
     private final Map<String, TrackedMethod> lastKnownMethods = new HashMap<>();
 
+    private static final String METHOD_KEY_SEPARATOR = "::";
+
     public MethodTracker(final GitConnector git) {
         this.git = git;
     }
@@ -44,7 +47,7 @@ public class MethodTracker {
         }
 
         lastKnownMethods.clear();
-        currentMethods.forEach(m -> lastKnownMethods.put(m.filepath() + "::" + m.signature(), m));
+        currentMethods.forEach(m -> lastKnownMethods.put(m.filepath() + METHOD_KEY_SEPARATOR + m.signature(), m));
 
         return currentMethods;
     }
@@ -57,21 +60,21 @@ public class MethodTracker {
             final CompilationUnit cu = StaticJavaParser.parse(content);
             cu.findAll(CallableDeclaration.class).forEach(callable -> {
                 final String signature = callable.getSignature().asString();
-                final String fullSignatureKey = file + "::" + signature;
+                final String fullSignatureKey = file + METHOD_KEY_SEPARATOR + signature;
                 final String id = lastKnownMethods.getOrDefault(fullSignatureKey, new TrackedMethod(UUID.randomUUID().toString(), "", "")).id();
                 
                 final TrackedMethod trackedMethod = new TrackedMethod(id, signature, file);
                 currentMethods.add(trackedMethod);
                 methodAstMap.put(trackedMethod, callable);
             });
-        } catch (final Exception e) {
-            log.warn("Failed to parse Java file: {}", file);
+        } catch (final ParseProblemException e) {
+            log.warn("Failed to parse Java file: {}. Skipping method extraction.", file);
         }
     }
 
     private void calculateAllFeatures(final TrackedMethod method, final CallableDeclaration<?> callable, final RevCommit releaseCommit) {
         method.addAllFeatures(StaticMetricsCalculator.calculateAll(callable));
-        method.addFeature("Duplication", 0);
+        method.addFeature(Metrics.DUPLICATION, 0);
 
         try {
             method.addAllFeatures(calculateChangeHistoryFeatures(method, callable, releaseCommit));
@@ -86,59 +89,78 @@ public class MethodTracker {
         if (methodStartLine == -1) return getPlaceholderChangeFeatures();
         final int methodEndLine = callable.getEnd().map(p -> p.line).orElse(-1);
 
-        final Set<String> authors = new HashSet<>();
-        int revisionCount = 0;
-        int totalLinesAdded = 0;
-        int totalLinesDeleted = 0;
-        int maxChurn = 0;
-
+        final ChangeMetrics metrics = new ChangeMetrics();
         final Iterable<RevCommit> commits = git.getGit().log().add(releaseCommit.getId()).addPath(trackedMethod.filepath()).call();
 
         for (final RevCommit commit : commits) {
-            if (commit.getParentCount() == 0) continue;
-            
-            try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
-                diffFormatter.setRepository(git.getGit().getRepository());
-                final List<DiffEntry> diffs = diffFormatter.scan(commit.getParent(0).getTree(), commit.getTree());
-                for (final DiffEntry diff : diffs) {
-                    if (!diff.getNewPath().equals(trackedMethod.filepath())) continue;
-
-                    boolean methodWasTouched = false;
-                    final FileHeader fileHeader = diffFormatter.toFileHeader(diff);
-                    for (final Edit edit : fileHeader.toEditList()) {
-                        if (Math.max(methodStartLine, edit.getBeginB() + 1) <= Math.min(methodEndLine, edit.getEndB())) {
-                            totalLinesAdded += edit.getLengthB();
-                            totalLinesDeleted += edit.getLengthA();
-                            maxChurn = Math.max(maxChurn, edit.getLengthA() + edit.getLengthB());
-                            methodWasTouched = true;
-                        }
-                    }
-                    if(methodWasTouched) {
-                        revisionCount++;
-                        authors.add(commit.getAuthorIdent().getName());
-                    }
-                }
+            if (commit.getParentCount() > 0) {
+                isMethodTouchedInCommit(trackedMethod.filepath(), commit, methodStartLine, methodEndLine, metrics);
             }
         }
         
-        final Map<String, Number> features = new HashMap<>();
-        features.put("NR", revisionCount);
-        features.put("NAuth", authors.size());
-        features.put("stmtAdded", totalLinesAdded);
-        features.put("stmtDeleted", totalLinesDeleted);
-        features.put("maxChurn", maxChurn);
-        features.put("avgChurn", (revisionCount > 0) ? (double)(totalLinesAdded + totalLinesDeleted) / revisionCount : 0);
-        return features;
+        return metrics.toMap();
+    }
+
+    private void isMethodTouchedInCommit(String filePath, RevCommit commit, int methodStart, int methodEnd, ChangeMetrics metrics) throws IOException {
+        try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+            diffFormatter.setRepository(git.getGit().getRepository());
+            final List<DiffEntry> diffs = diffFormatter.scan(commit.getParent(0).getTree(), commit.getTree());
+
+            for (final DiffEntry diff : diffs) {
+                if (!diff.getNewPath().equals(filePath)) continue;
+
+                boolean methodWasTouched = false;
+                final FileHeader fileHeader = diffFormatter.toFileHeader(diff);
+                for (final Edit edit : fileHeader.toEditList()) {
+                    if (Math.max(methodStart, edit.getBeginB() + 1) <= Math.min(methodEnd, edit.getEndB())) {
+                        metrics.update(edit.getLengthA(), edit.getLengthB());
+                        methodWasTouched = true;
+                    }
+                }
+                if (methodWasTouched) {
+                    metrics.incrementRevisions();
+                    metrics.addAuthor(commit.getAuthorIdent().getName());
+                }
+            }
+        }
+    }
+    
+    // Inner class to handle change metrics calculation
+    private static class ChangeMetrics {
+        private final Set<String> authors = new HashSet<>();
+        private int revisionCount = 0;
+        private int totalLinesAdded = 0;
+        private int totalLinesDeleted = 0;
+        private int maxChurn = 0;
+
+        void addAuthor(String name) { authors.add(name); }
+        void incrementRevisions() { revisionCount++; }
+        void update(int deleted, int added) {
+            totalLinesAdded += added;
+            totalLinesDeleted += deleted;
+            maxChurn = Math.max(maxChurn, deleted + added);
+        }
+
+        Map<String, Number> toMap() {
+            final Map<String, Number> features = new HashMap<>();
+            features.put(Metrics.NR, revisionCount);
+            features.put(Metrics.NAUTH, authors.size());
+            features.put(Metrics.STMT_ADDED, totalLinesAdded);
+            features.put(Metrics.STMT_DELETED, totalLinesDeleted);
+            features.put(Metrics.MAX_CHURN, maxChurn);
+            features.put(Metrics.AVG_CHURN, (revisionCount > 0) ? (double)(totalLinesAdded + totalLinesDeleted) / revisionCount : 0);
+            return features;
+        }
     }
 
     private Map<String, Number> getPlaceholderChangeFeatures() {
         final Map<String, Number> features = new HashMap<>();
-        features.put("NR", 0);
-        features.put("NAuth", 0);
-        features.put("stmtAdded", 0);
-        features.put("stmtDeleted", 0);
-        features.put("maxChurn", 0);
-        features.put("avgChurn", 0);
+        features.put(Metrics.NR, 0);
+        features.put(Metrics.NAUTH, 0);
+        features.put(Metrics.STMT_ADDED, 0);
+        features.put(Metrics.STMT_DELETED, 0);
+        features.put(Metrics.MAX_CHURN, 0);
+        features.put(Metrics.AVG_CHURN, 0);
         return features;
     }
 }

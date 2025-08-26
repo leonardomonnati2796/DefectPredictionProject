@@ -29,6 +29,12 @@ public class DatasetGenerator {
         "Duplication", "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
     };
 
+    private static final double PROPORTION_DEFAULT_COEFFICIENT = 1.5;
+    private static final String BUGGY_YES = "yes";
+    private static final String BUGGY_NO = "no";
+    private static final String METHOD_KEY_SEPARATOR = "::";
+
+
     private final String projectName;
     private final GitConnector git;
     private final JiraConnector jira;
@@ -43,7 +49,7 @@ public class DatasetGenerator {
         this.releaseCommits = releaseCommits;
     }
 
-    public void generateCsv(final String basePath) {
+    public void generateCsv(final String basePath) throws IOException, GitAPIException {
         final String csvFilePath = Paths.get(basePath, this.projectName + ".csv").toString();
 
         try {
@@ -60,6 +66,8 @@ public class DatasetGenerator {
 
         } catch (IOException | GitAPIException e) {
             log.error("Error during dataset generation for {}", this.projectName, e);
+            // Re-throw to allow the caller to handle it
+            throw e;
         }
     }
     
@@ -102,7 +110,7 @@ public class DatasetGenerator {
             features.getOrDefault("stmtDeleted", 0).toString(),
             features.getOrDefault("maxChurn", 0).toString(),
             String.format(Locale.US, "%.2f", features.getOrDefault("avgChurn", 0.0)),
-            isBuggy ? "yes" : "no"
+            isBuggy ? BUGGY_YES : BUGGY_NO
         };
     }
 
@@ -117,22 +125,34 @@ public class DatasetGenerator {
     }
 
     private boolean isMethodBuggy(final TrackedMethod method, final ProjectRelease currentRelease, final List<JiraTicket> allTickets, final double pMedian, final Map<String, List<String>> bugToMethodsMap) {
-        final String methodKey = method.filepath() + "::" + method.signature();
+        final String methodKey = method.filepath() + METHOD_KEY_SEPARATOR + method.signature();
+        
         for (final JiraTicket ticket : allTickets) {
             final List<String> fixedMethods = bugToMethodsMap.get(ticket.getKey());
             if (fixedMethods == null || !fixedMethods.contains(methodKey)) continue;
 
-            int iv = ticket.getIntroductionVersionIndex();
-            final int fv = ticket.getFixedVersionIndex();
-            if (iv <= 0 && fv > 0 && ticket.getOpeningVersionIndex() > 0 && fv > ticket.getOpeningVersionIndex()) {
-                iv = (int) Math.round(fv - (fv - ticket.getOpeningVersionIndex()) * pMedian);
-                if (iv < 1) iv = 1;
-            }
+            int iv = calculateIntroductionVersion(ticket, pMedian);
+            int fv = ticket.getFixedVersionIndex();
+
             if (iv > 0 && fv > 0 && currentRelease.index() >= iv && currentRelease.index() < fv) {
                 return true;
             }
         }
         return false;
+    }
+    
+    private int calculateIntroductionVersion(JiraTicket ticket, double pMedian) {
+        int iv = ticket.getIntroductionVersionIndex();
+        int fv = ticket.getFixedVersionIndex();
+        int ov = ticket.getOpeningVersionIndex();
+
+        // If IV is not set, estimate it using the proportion formula
+        if (iv <= 0 && fv > 0 && ov > 0 && fv > ov) {
+            iv = (int) Math.round(fv - (fv - ov) * pMedian);
+            // Ensure IV is at least 1
+            return Math.max(1, iv);
+        }
+        return iv;
     }
 
     private void setVersionIndices(final List<JiraTicket> tickets, final List<ProjectRelease> releases) {
@@ -163,8 +183,12 @@ public class DatasetGenerator {
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
                 .collect(Collectors.toList());
-        if (pValues.isEmpty()) return 1.5;
+        if (pValues.isEmpty()) return PROPORTION_DEFAULT_COEFFICIENT;
+        
         final int size = pValues.size();
-        return (size % 2 == 1) ? pValues.get(size / 2) : (pValues.get(size / 2 - 1) + pValues.get(size / 2)) / 2.0;
+        if (size % 2 == 1) {
+            return pValues.get(size / 2);
+        }
+        return (pValues.get(size / 2 - 1) + pValues.get(size / 2)) / 2.0;
     }
 }

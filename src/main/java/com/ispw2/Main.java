@@ -7,6 +7,7 @@ import com.ispw2.connectors.GitConnector;
 import com.ispw2.connectors.JiraConnector;
 import com.ispw2.model.ProjectRelease;
 import com.ispw2.preprocessing.DataPreprocessor;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +29,7 @@ public class Main {
             new Project("BOOKKEEPER", "https://github.com/apache/bookkeeper.git"),
             new Project("OPENJPA", "https://github.com/apache/openjpa.git")
     );
-    
+
     private static final String DATASETS_DIR_NAME = "datasets";
     private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
 
@@ -53,19 +54,21 @@ public class Main {
             log.info("Output for git clones: {}", gitProjectsPath);
 
             for (final Project project : PROJECTS_TO_ANALYZE) {
-                runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
+                try {
+                    runPipelineFor(project, datasetsPath.toString(), gitProjectsPath.toString());
+                } catch (Exception e) {
+                    log.error("An error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
+                }
             }
 
         } catch (final IOException e) {
             log.error("A fatal I/O error occurred while setting up directories.", e);
-        } catch (final Exception e) {
-            log.error("A fatal unexpected error occurred during the pipeline execution.", e);
         }
 
         log.info("All projects processed and evaluated successfully.");
     }
 
-    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsBasePath) throws Exception {
+    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsBasePath) throws IOException, GitAPIException {
         log.info("---------------------------------------------------------");
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
@@ -85,42 +88,51 @@ public class Main {
         generateDatasetIfNotExists(project, datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        final ClassifierRunner runner = new ClassifierRunner(processedArffPath, modelPath);
-        final Classifier bestModel = runner.getBestClassifier();
-        
-        final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
-        final String aFeature = analyzer.findAndSaveActionableMethod();
-        
-        final WhatIfSimulator simulator = new WhatIfSimulator(processedArffPath, bestModel, aFeature);
-        simulator.runFullDatasetSimulation();
+        try {
+            final ClassifierRunner runner = new ClassifierRunner(processedArffPath, modelPath);
+            final Classifier bestModel = runner.getBestClassifier();
+            
+            final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
+            final String aFeature = analyzer.findAndSaveActionableMethod();
+            
+            final WhatIfSimulator simulator = new WhatIfSimulator(processedArffPath, bestModel, aFeature);
+            simulator.runFullDatasetSimulation();
+        } catch (Exception e) {
+            log.error("An error occurred during classification or simulation for project {}", project.name(), e);
+        }
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
-    private static void generateDatasetIfNotExists(final Project project, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) throws Exception {
-        log.info("[Milestone 1, Step 1] Checking for Dataset A...");
+    private static void generateDatasetIfNotExists(final Project project, final String datasetsBasePath, final GitConnector git, final JiraConnector jira, final List<ProjectRelease> releases, final Map<String, RevCommit> releaseCommits) throws IOException, GitAPIException {
+        log.info("[Milestone 1, Step 1] Checking for Dataset...");
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
         final File datasetFile = new File(originalCsvPath);
         
-        if (datasetFile.exists()) {
+        if (datasetFile.exists() && datasetFile.length() > 0) {
             log.info("Dataset already exists. Skipping generation.");
         } else {
-            log.info("Dataset not found. Generating...");
+            log.info("Dataset not found or is empty. Generating...");
             final DatasetGenerator generator = new DatasetGenerator(project.name(), git, jira, releases, releaseCommits);
             generator.generateCsv(datasetsBasePath);
             log.info("Dataset generation complete.");
         }
     }
 
-    private static void preprocessData(final String originalCsvPath, final String processedArffPath) throws Exception {
+    private static void preprocessData(final String originalCsvPath, final String processedArffPath) throws IOException {
         log.info("[...] Preprocessing data for analysis...");
         final File arffFile = new File(processedArffPath);
-        if (arffFile.exists()) {
+        if (arffFile.exists() && arffFile.length() > 0) {
             log.info("Processed ARFF file already exists. Skipping preprocessing.");
         } else {
-            final DataPreprocessor processor = new DataPreprocessor(originalCsvPath, processedArffPath);
-            processor.processData();
-            log.info("Data preprocessing complete. Output: {}", processedArffPath);
+            try {
+                final DataPreprocessor processor = new DataPreprocessor(originalCsvPath, processedArffPath);
+                processor.processData();
+                log.info("Data preprocessing complete. Output: {}", processedArffPath);
+            } catch (Exception e) {
+                // Converting checked exception from Weka to a more common one
+                throw new IOException("Failed to preprocess data", e);
+            }
         }
     }
 }

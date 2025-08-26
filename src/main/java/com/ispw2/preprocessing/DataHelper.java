@@ -5,13 +5,16 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
+import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.converters.ArffLoader;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
+import java.util.Optional;
 
 public final class DataHelper {
 
@@ -30,37 +33,65 @@ public final class DataHelper {
         }
     }
 
-    public static int countDefective(final Classifier model, final Instances data) throws Exception {
+    public static int countDefective(final Classifier model, final Instances data) {
         int defectiveCount = 0;
         final Attribute classAttribute = data.classAttribute();
-        double buggyClassIndex = -1.0;
-        if (classAttribute.indexOfValue("yes") != -1) {
-            buggyClassIndex = classAttribute.indexOfValue("yes");
-        } else if (classAttribute.indexOfValue("1") != -1) {
-            buggyClassIndex = classAttribute.indexOfValue("1");
-        }
-        
-        if (buggyClassIndex < 0) return 0;
 
-        for (int i = 0; i < data.numInstances(); i++) {
-            if (model.classifyInstance(data.instance(i)) == buggyClassIndex) {
-                defectiveCount++;
+        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
+        if (buggyClassIndexOpt.isEmpty()) {
+            return 0; // No "buggy" class found
+        }
+        final double buggyClassIndex = buggyClassIndexOpt.get();
+
+        for (final Instance instance : data) {
+            try {
+                if (model.classifyInstance(instance) == buggyClassIndex) {
+                    defectiveCount++;
+                }
+            } catch (Exception e) {
+                // Log or handle exception if a single instance fails classification
+                System.err.println("Could not classify instance: " + e.getMessage());
             }
         }
         return defectiveCount;
+    }
+
+    private static Optional<Integer> findBuggyClassIndex(Attribute classAttribute) {
+        int index = classAttribute.indexOfValue("yes");
+        if (index != -1) {
+            return Optional.of(index);
+        }
+        index = classAttribute.indexOfValue("1");
+        if (index != -1) {
+            return Optional.of(index);
+        }
+        return Optional.empty();
     }
     
     public static Instances filterInstances(final Instances data, final String attributeName, final String operator, final double value) {
         final Instances filtered = new Instances(data, 0);
         final Attribute attribute = data.attribute(attributeName);
-        for (int i = 0; i < data.numInstances(); i++) {
-            final double attrValue = data.instance(i).value(attribute);
+        if (attribute == null) {
+            return filtered; // Return empty set if attribute doesn't exist
+        }
+        
+        for (final Instance instance : data) {
+            final double attrValue = instance.value(attribute);
             boolean conditionMet = false;
-            if (">".equals(operator) && attrValue > value) conditionMet = true;
-            if ("<=".equals(operator) && attrValue <= value) conditionMet = true;
+            switch (operator) {
+                case ">":
+                    if (attrValue > value) conditionMet = true;
+                    break;
+                case "<=":
+                    if (attrValue <= value) conditionMet = true;
+                    break;
+                default:
+                    // Operator not supported, do nothing
+                    break;
+            }
             
             if (conditionMet) {
-                filtered.add(data.instance(i));
+                filtered.add(instance);
             }
         }
         return filtered;

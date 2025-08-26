@@ -30,6 +30,15 @@ public class DataPreprocessor {
     private final String inputCsvPath;
     private final String outputArffPath;
 
+    // Constants for column names to avoid magic strings
+    private static final String PROJECT_COLUMN = "Project";
+    private static final String METHOD_NAME_COLUMN = "MethodName";
+    private static final String RELEASE_COLUMN = "Release";
+    private static final String IS_BUGGY_COLUMN = "IsBuggy";
+    
+    // Indices for columns to be removed (1-based index)
+    private static final String REMOVE_INDICES = "1-3";
+
     public DataPreprocessor(final String inputCsvPath, final String outputArffPath) {
         this.inputCsvPath = inputCsvPath;
         this.outputArffPath = outputArffPath;
@@ -40,7 +49,7 @@ public class DataPreprocessor {
         rawData.setClassIndex(rawData.numAttributes() - 1);
 
         final Remove removeFilter = new Remove();
-        removeFilter.setAttributeIndices("1-3"); 
+        removeFilter.setAttributeIndices(REMOVE_INDICES); 
         removeFilter.setInputFormat(rawData);
         final Instances dataWithoutIds = Filter.useFilter(rawData, removeFilter);
 
@@ -93,12 +102,18 @@ public class DataPreprocessor {
     private ArrayList<Attribute> defineWekaAttributes(final List<String> headers) {
         final ArrayList<Attribute> attributes = new ArrayList<>();
         for (final String header : headers) {
-            if ("Project".equals(header) || "MethodName".equals(header) || "Release".equals(header)) {
-                attributes.add(new Attribute(header, (List<String>) null)); 
-            } else if ("IsBuggy".equals(header)) {
-                attributes.add(new Attribute(header, Arrays.asList("no", "yes"))); 
-            } else {
-                attributes.add(new Attribute(header)); 
+            switch(header) {
+                case PROJECT_COLUMN:
+                case METHOD_NAME_COLUMN:
+                case RELEASE_COLUMN:
+                    attributes.add(new Attribute(header, (List<String>) null)); // String attribute
+                    break;
+                case IS_BUGGY_COLUMN:
+                    attributes.add(new Attribute(header, Arrays.asList("no", "yes"))); // Nominal attribute
+                    break;
+                default:
+                    attributes.add(new Attribute(header)); // Numeric attribute
+                    break;
             }
         }
         return attributes;
@@ -116,6 +131,7 @@ public class DataPreprocessor {
                 instance.setValue(attribute, value);
             }
         } catch (final NumberFormatException e) {
+            // If parsing fails, treat as a missing value
             instance.setMissing(attribute);
         }
     }

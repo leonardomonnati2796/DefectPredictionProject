@@ -33,27 +33,36 @@ public class ClassifierRunner {
         this.modelPath = modelPath;
     }
     
-    public Classifier getBestClassifier() throws Exception {
+    public Classifier getBestClassifier() throws IOException {
         final File modelFile = new File(modelPath);
         if (modelFile.exists() && modelFile.length() > 0) {
             log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file...");
-            return (Classifier) SerializationHelper.read(modelPath);
+            try {
+                return (Classifier) SerializationHelper.read(modelPath);
+            } catch (Exception e) {
+                throw new IOException("Failed to load the saved model.", e);
+            }
         }
         
         log.info("\n[Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...");
         loadData();
         
         if (!isDataSufficientForClassification()) {
+            // Return a default classifier if data is not sufficient
             return new RandomForest();
         }
 
-        final Classifier bestBaseClassifier = findBestBaseClassifier();
-        final Classifier tunedClassifier = tuneClassifier(bestBaseClassifier);
-        
-        log.info("\nSaving tuned model to: {}", modelPath);
-        SerializationHelper.write(modelPath, tunedClassifier);
+        try {
+            final Classifier bestBaseClassifier = findBestBaseClassifier();
+            final Classifier tunedClassifier = tuneClassifier(bestBaseClassifier);
+            
+            log.info("\nSaving tuned model to: {}", modelPath);
+            SerializationHelper.write(modelPath, tunedClassifier);
 
-        return tunedClassifier;
+            return tunedClassifier;
+        } catch (Exception e) {
+            throw new IOException("An error occurred during classifier training or tuning.", e);
+        }
     }
 
     private void loadData() throws IOException {
@@ -108,7 +117,6 @@ public class ClassifierRunner {
 
     private Evaluation evaluateModel(final Classifier classifier) throws Exception {
         final Evaluation eval = new Evaluation(this.data);
-        // Ripetiamo la cross-validation per una stima più stabile
         for (int i = 0; i < NUM_REPEATS; i++) {
             eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new Random(i));
         }

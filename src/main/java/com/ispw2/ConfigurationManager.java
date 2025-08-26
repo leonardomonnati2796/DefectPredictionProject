@@ -1,16 +1,25 @@
 package com.ispw2;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ConfigurationManager {
     private static final Logger log = LoggerFactory.getLogger(ConfigurationManager.class);
     private static final String CONFIG_FILE = "/config.properties";
+
+    // Property keys as constants
+    private static final String KEY_RELEASE_CUTOFF = "analysis.release_cutoff_percentage";
+    private static final String KEY_ACTIONABLE_FEATURES = "analysis.actionable_features";
+    private static final String KEY_FEATURES_TO_SELECT = "preprocessing.features_to_select";
+    private static final String KEY_IBK_K_RANGE = "tuner.ibk.k_range";
+    private static final String KEY_RANDOMFOREST_ITERATIONS = "tuner.randomforest.iterations_range";
+
     private static ConfigurationManager instance;
     private final Properties properties;
 
@@ -35,25 +44,25 @@ public class ConfigurationManager {
     }
 
     public double getReleaseCutoffPercentage() {
-        return Double.parseDouble(properties.getProperty("analysis.release_cutoff_percentage", "0.5"));
+        return Double.parseDouble(properties.getProperty(KEY_RELEASE_CUTOFF, "0.5"));
     }
 
     public List<String> getActionableFeatures() {
-        final String features = properties.getProperty("analysis.actionable_features", "LOC,CyclomaticComplexity");
+        final String features = properties.getProperty(KEY_ACTIONABLE_FEATURES, "LOC,CyclomaticComplexity");
         return Arrays.asList(features.split(","));
     }
     
     public int getFeaturesToSelect() {
-        return Integer.parseInt(properties.getProperty("preprocessing.features_to_select", "5"));
+        return Integer.parseInt(properties.getProperty(KEY_FEATURES_TO_SELECT, "5"));
     }
     
     public String[] getIbkTuningParams() {
-        final String range = properties.getProperty("tuner.ibk.k_range", "1 10 1");
+        final String range = properties.getProperty(KEY_IBK_K_RANGE, "1 10 1");
         return ("K " + range).split(" ");
     }
     
     public String[] getRandomForestTuningParams() {
-        final String range = properties.getProperty("tuner.randomforest.iterations_range", "10 100 10");
+        final String range = properties.getProperty(KEY_RANDOMFOREST_ITERATIONS, "10 100 10");
         return ("I " + range).split(" ");
     }
 }

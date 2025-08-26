@@ -10,14 +10,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class StaticMetricsCalculator {
 
     private StaticMetricsCalculator() {
-        // Sonar: Aggiungere un costruttore privato per le classi di utilità
+        // Utility class with a private constructor
     }
     
     public static Map<String, Number> calculateAll(final CallableDeclaration<?> callable) {
         final Map<String, Number> features = new HashMap<>();
-        features.put("LOC", calculateLOC(callable));
-        features.put("CyclomaticComplexity", calculateCyclomaticComplexity(callable));
-        features.put("ParameterCount", callable.getParameters().size());
+        features.put(Metrics.LOC, calculateLOC(callable));
+        features.put(Metrics.CYCLOMATIC_COMPLEXITY, calculateCyclomaticComplexity(callable));
+        features.put(Metrics.PARAMETER_COUNT, callable.getParameters().size());
         return features;
     }
 
