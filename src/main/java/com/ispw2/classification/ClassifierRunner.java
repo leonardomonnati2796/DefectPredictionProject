@@ -23,10 +23,11 @@ public class ClassifierRunner {
     private static final Logger log = LoggerFactory.getLogger(ClassifierRunner.class);
     private static final int NUM_FOLDS = 10;
     private static final int NUM_REPEATS = 10;
-
-    // --- MODIFICA QUI ---
-    // Costante definita per il separatore della tabella.
+    
     private static final String TABLE_SEPARATOR = "----------------------------------------------------------------------";
+    private static final String TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
+    private static final String TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
+
 
     private final String processedArffPath;
     private final String modelPath;
@@ -73,7 +74,12 @@ public class ClassifierRunner {
         loader.setSource(new File(processedArffPath));
         this.data = loader.getDataSet();
         this.data.setClassIndex(this.data.numAttributes() - 1);
-        log.info("Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
+        
+        // --- MODIFICA QUI ---
+        // Aggiunto controllo per ottimizzazione.
+        if (log.isInfoEnabled()) {
+            log.info("Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
+        }
     }
 
     private boolean isDataSufficientForClassification() {
@@ -94,10 +100,14 @@ public class ClassifierRunner {
         final List<Classifier> classifiers = Arrays.asList(new RandomForest(), new NaiveBayes(), new IBk());
         Classifier bestClassifier = null;
         double bestAuc = 0.0;
-
-        log.info(TABLE_SEPARATOR);
-        log.info(String.format("%-20s | %-10s | %-10s | %-10s | %-10s", "Classifier", "AUC", "Precision", "Recall", "Kappa"));
-        log.info(TABLE_SEPARATOR);
+        
+        // --- MODIFICA QUI ---
+        // Aggiunto controllo per ottimizzazione.
+        if (log.isInfoEnabled()) {
+            log.info(TABLE_SEPARATOR);
+            log.info(String.format(TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
+            log.info(TABLE_SEPARATOR);
+        }
 
         for (final Classifier classifier : classifiers) {
             final Evaluation eval = evaluateModel(classifier);
@@ -106,15 +116,22 @@ public class ClassifierRunner {
             final double recall = eval.weightedRecall();
             final double kappa = eval.kappa();
             
-            log.info(String.format("%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f", classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
+            // --- MODIFICA QUI ---
+            // Aggiunto controllo per ottimizzazione.
+            if (log.isInfoEnabled()) {
+                log.info(String.format(TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
+            }
 
             if (auc > bestAuc) {
                 bestAuc = auc;
                 bestClassifier = classifier;
             }
         }
+        
         log.info(TABLE_SEPARATOR);
-        log.info("Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
+        if (bestClassifier != null && log.isInfoEnabled()) {
+            log.info("Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
+        }
         return bestClassifier;
     }
 
@@ -127,10 +144,14 @@ public class ClassifierRunner {
     }
     
     private Classifier tuneClassifier(final Classifier baseClassifier) throws Exception {
-        log.info("--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());
+        if (log.isInfoEnabled()) {
+            log.info("--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());
+        }
         
         if (!(baseClassifier instanceof RandomForest) && !(baseClassifier instanceof IBk)) {
-            log.info("No parameters to tune for {}.", baseClassifier.getClass().getSimpleName());
+            if (log.isInfoEnabled()) {
+                log.info("No parameters to tune for {}.", baseClassifier.getClass().getSimpleName());
+            }
             baseClassifier.buildClassifier(data);
             return baseClassifier;
         }
@@ -148,7 +169,9 @@ public class ClassifierRunner {
         }
         
         tuner.buildClassifier(data);
-        log.info("Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));
+        if (log.isInfoEnabled()) {
+            log.info("Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));
+        }
         return tuner;
     }
 }

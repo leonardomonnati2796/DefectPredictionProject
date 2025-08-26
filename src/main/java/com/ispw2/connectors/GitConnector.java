@@ -36,6 +36,8 @@ import java.util.regex.Pattern;
 public class GitConnector {
     private static final Logger log = LoggerFactory.getLogger(GitConnector.class);
     private static final String METHOD_KEY_SEPARATOR = "::";
+    // Il pattern Regex viene compilato una sola volta per migliorare le performance.
+    private static final Pattern JIRA_TICKET_PATTERN = Pattern.compile("([A-Z][A-Z0-9]+-\\d+)");
 
     private final String projectName;
     private final String remoteUrl;
@@ -58,8 +60,8 @@ public class GitConnector {
         } catch (final RepositoryNotFoundException e) {
             log.warn("Repository not found at {}. Performing a fresh clone.", this.localPath);
             if (repoDir.exists() && !deleteDirectory(repoDir)) {
-                log.error("Could not delete existing, corrupted directory: {}", repoDir.getPath());
-                return;
+                // Lancia un'eccezione se la pulizia fallisce, invece di continuare.
+                throw new IOException("Could not delete existing, corrupted directory: " + repoDir.getPath());
             }
             try {
                 log.info("Cloning {}...", this.projectName);
@@ -80,8 +82,8 @@ public class GitConnector {
             this.git.close();
         }
         final File repoDir = new File(this.localPath);
-        if (repoDir.exists()) {
-            log.info("Cleaning up repository: {}", this.localPath);
+        if (repoDir.exists() && log.isInfoEnabled()) {
+             log.info("Cleaning up repository: {}", this.localPath);
             if (deleteDirectory(repoDir)) {
                  log.info("Cleanup successful.");
             } else {
@@ -90,8 +92,6 @@ public class GitConnector {
         }
     }
     
-    // --- MODIFICA QUI ---
-    // Il metodo è stato semplificato per ridurre la complessità cognitiva.
     public Map<String, RevCommit> getReleaseCommits(final List<ProjectRelease> releases) throws IOException {
         final Map<String, RevCommit> releaseCommits = new HashMap<>();
         final Map<String, Ref> tagMap = new HashMap<>();
@@ -105,7 +105,6 @@ public class GitConnector {
 
         try (RevWalk walk = new RevWalk(repository)) {
             for (final ProjectRelease release : releases) {
-                // La logica complessa è ora in un metodo separato.
                 final Ref tagRef = findTagRef(release.name(), tagMap);
                 if (tagRef != null) {
                     releaseCommits.put(release.name(), walk.parseCommit(tagRef.getObjectId()));
@@ -115,11 +114,7 @@ public class GitConnector {
         return releaseCommits;
     }
 
-    // --- NUOVO METODO AUSILIARIO ---
-    // Questo metodo contiene la logica per trovare il tag corretto,
-    // eliminando la catena di if-else if dal metodo principale.
     private Ref findTagRef(String releaseName, Map<String, Ref> tagMap) {
-        // Lista dei possibili formati per il nome del tag
         final List<String> tagPatterns = Arrays.asList(
             releaseName,
             "v" + releaseName,
@@ -144,32 +139,38 @@ public class GitConnector {
                     if (commit.getParentCount() > 0) {
                         final RevCommit parent = revWalk.parseCommit(commit.getParent(0).getId());
                         final List<DiffEntry> diffs = getDiff(parent, commit);
-                        final List<String> affectedMethods = new ArrayList<>();
+                        final Set<String> affectedMethods = new HashSet<>();
                         for (final DiffEntry diff : diffs) {
-                            if (diff.getChangeType() == DiffEntry.ChangeType.MODIFY && diff.getNewPath().endsWith(".java")) {
+                            // La condizione complessa è stata estratta in un metodo per leggibilità.
+                            if (isJavaFileModification(diff)) {
                                 affectedMethods.addAll(getModifiedMethods(diff, commit));
                             }
                         }
-                        bugToMethods.put(ticket.getKey(), affectedMethods);
+                        bugToMethods.put(ticket.getKey(), new ArrayList<>(affectedMethods));
                     }
                 }
             }
         }
         return bugToMethods;
     }
+    
+    private boolean isJavaFileModification(DiffEntry diff) {
+        return diff.getChangeType() == DiffEntry.ChangeType.MODIFY && diff.getNewPath().endsWith(".java");
+    }
 
-    private List<String> getModifiedMethods(final DiffEntry diff, final RevCommit commit) throws IOException {
-        final List<String> modifiedMethods = new ArrayList<>();
+    private Set<String> getModifiedMethods(final DiffEntry diff, final RevCommit commit) throws IOException {
+        // Usa un Set per evitare di aggiungere lo stesso metodo più volte.
+        final Set<String> modifiedMethods = new HashSet<>();
         final String newPath = diff.getNewPath();
         final String fileContent = getFileContent(newPath, commit.getName());
         if (fileContent.isEmpty()) return modifiedMethods;
         
         final List<MethodDeclaration> methods;
         try {
-            methods = new ArrayList<>(StaticJavaParser.parse(fileContent).findAll(MethodDeclaration.class));
+            methods = StaticJavaParser.parse(fileContent).findAll(MethodDeclaration.class);
         } catch (final ParseProblemException e) { 
-            log.warn("Failed to parse Java file during diff: {}", newPath);
-            return Collections.emptyList();
+            log.warn("Failed to parse Java file during diff: {}. Details: {}", newPath, e.getMessage());
+            return Collections.emptySet();
         }
 
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
@@ -177,6 +178,7 @@ public class GitConnector {
             final FileHeader fileHeader = diffFormatter.toFileHeader(diff);
             for (final Edit edit : fileHeader.toEditList()) {
                 for (final MethodDeclaration method : methods) {
+                    // Controlla se il range di linee di una modifica (edit) si sovrappone al range di linee di un metodo.
                     if (method.getRange().isPresent() &&
                         Math.max(method.getRange().get().begin.line, edit.getBeginB()) <= Math.min(method.getRange().get().end.line, edit.getEndB())) {
                         modifiedMethods.add(newPath + METHOD_KEY_SEPARATOR + method.getSignature().asString());
@@ -188,22 +190,19 @@ public class GitConnector {
     }
 
     public void findAndSetFixCommits(final List<JiraTicket> tickets) throws GitAPIException, IOException {
-        final Pattern pattern = Pattern.compile("([A-Z][A-Z0-9]+-\\d+)");
         final Map<String, JiraTicket> ticketMap = new HashMap<>();
         for (final JiraTicket ticket : tickets) {
             ticketMap.put(ticket.getKey(), ticket);
         }
         final Iterable<RevCommit> commits = git.log().all().call();
         for (final RevCommit commit : commits) {
-            final Matcher matcher = pattern.matcher(commit.getFullMessage());
+            final Matcher matcher = JIRA_TICKET_PATTERN.matcher(commit.getFullMessage());
             while (matcher.find()) {
                 final String ticketKey = matcher.group(1);
-                if (ticketMap.containsKey(ticketKey)) {
-                    final JiraTicket ticket = ticketMap.get(ticketKey);
-                    if (ticket.getFixCommitHash() == null) {
-                        ticket.setFixCommitHash(commit.getName());
-                        ticket.setResolutionDate(LocalDateTime.ofInstant(commit.getAuthorIdent().getWhenAsInstant(), ZoneId.systemDefault()));
-                    }
+                final JiraTicket ticket = ticketMap.get(ticketKey);
+                if (ticket != null && ticket.getFixCommitHash() == null) {
+                    ticket.setFixCommitHash(commit.getName());
+                    ticket.setResolutionDate(LocalDateTime.ofInstant(commit.getAuthorIdent().getWhenAsInstant(), ZoneId.systemDefault()));
                 }
             }
         }
@@ -223,15 +222,19 @@ public class GitConnector {
         }
     }
 
-    public List<String> getJavaFilesForCommit(final String commitId) throws IOException, GitAPIException {
-        git.checkout().setName(commitId).call();
+    public List<String> getJavaFilesForCommit(final String commitId) throws IOException {
         final List<String> javaFiles = new ArrayList<>();
-        try (TreeWalk treeWalk = new TreeWalk(repository)) {
-            treeWalk.reset(repository.resolve("HEAD^{tree}"));
-            treeWalk.setRecursive(true);
-            while (treeWalk.next()) {
-                if (treeWalk.getPathString().endsWith(".java") && !treeWalk.getPathString().toLowerCase().contains("test")) {
-                    javaFiles.add(treeWalk.getPathString());
+        // Il metodo non esegue più un 'checkout', ma ispeziona direttamente il commit.
+        try (RevWalk revWalk = new RevWalk(repository)) {
+            RevCommit commit = revWalk.parseCommit(repository.resolve(commitId));
+            try (TreeWalk treeWalk = new TreeWalk(repository)) {
+                treeWalk.addTree(commit.getTree());
+                treeWalk.setRecursive(true);
+                while (treeWalk.next()) {
+                    final String path = treeWalk.getPathString();
+                    if (path.endsWith(".java") && !path.toLowerCase().contains("test")) {
+                        javaFiles.add(path);
+                    }
                 }
             }
         }
@@ -240,7 +243,10 @@ public class GitConnector {
 
     public String getFileContent(final String filePath, final String commitId) throws IOException {
         final ObjectId objId = repository.resolve(commitId + ":" + filePath);
-        if (objId == null) return "";
+        if (objId == null) {
+            log.warn("Could not resolve file path '{}' in commit '{}'", filePath, commitId);
+            return "";
+        }
         return new String(repository.open(objId).getBytes(), StandardCharsets.UTF_8);
     }
     
@@ -256,7 +262,9 @@ public class GitConnector {
         final File[] allContents = directory.listFiles();
         if (allContents != null) {
             for (final File file : allContents) {
-                deleteDirectory(file);
+                if (!deleteDirectory(file)) {
+                    return false;
+                }
             }
         }
         return directory.delete();

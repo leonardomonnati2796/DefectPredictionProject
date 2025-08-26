@@ -48,8 +48,10 @@ public class Main {
             Files.createDirectories(datasetsPath);
             Files.createDirectories(gitProjectsPath);
             
-            log.info("Output for datasets: {}", datasetsPath);
-            log.info("Output for git clones: {}", gitProjectsPath);
+            if (log.isInfoEnabled()) {
+                log.info("Output for datasets: {}", datasetsPath);
+                log.info("Output for git clones: {}", gitProjectsPath);
+            }
 
             for (final Project project : PROJECTS_TO_ANALYZE) {
                 try {
@@ -66,15 +68,16 @@ public class Main {
         log.info("All projects processed and evaluated successfully.");
     }
 
-    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException, GitAPIException {
+    private static void runPipelineFor(final Project project, final String datasetsBasePath, final String gitProjectsBasePath) throws IOException, GitAPIException {
         log.info("---------------------------------------------------------");
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
 
         final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
         final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
-        final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
-        final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
+        final String repoPath = Paths.get(gitProjectsBasePath, project.name()).toString();
+        // --- MODIFICA QUI ---
+        // La definizione di 'modelPath' è stata rimossa perché non più utilizzata.
 
         final GitConnector git = new GitConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
@@ -86,14 +89,18 @@ public class Main {
         generateDatasetIfNotExists(project.name(), datasetsBasePath, git, jira, releases, releaseCommits);
         preprocessData(originalCsvPath, processedArffPath);
         
-        // Il blocco try-catch è stato estratto nel metodo seguente.
-        runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, modelPath, datasetsBasePath, git, releaseCommits);
+        // La logica di analisi è estratta nel metodo seguente.
+        // --- MODIFICA QUI ---
+        // Il parametro 'modelPath' è stato rimosso dalla chiamata.
+        runAnalysisAndSimulation(project.name(), originalCsvPath, processedArffPath, datasetsBasePath, git, releaseCommits);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
     // Questo metodo ausiliario contiene la logica estratta.
-    private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String modelPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
+    // --- MODIFICA QUI ---
+    // Il parametro 'modelPath' è stato rimosso dalla firma del metodo.
+    private static void runAnalysisAndSimulation(String projectName, String originalCsvPath, String processedArffPath, String datasetsBasePath, GitConnector git, Map<String, RevCommit> releaseCommits) {
         try {
             final DataAnalyzer analyzer = new DataAnalyzer(originalCsvPath, processedArffPath, git, releaseCommits);
             analyzer.findAndSaveActionableMethod();
@@ -105,7 +112,7 @@ public class Main {
             comparer.compareMethods(originalMethodPath, refactoredMethodPath);
 
         } catch (Exception e) {
-            log.error("An error occurred during classification or simulation for project {}", projectName, e);
+            log.error("An error occurred during analysis for project {}", projectName, e);
         }
     }
 

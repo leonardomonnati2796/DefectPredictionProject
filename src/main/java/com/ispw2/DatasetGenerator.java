@@ -65,8 +65,7 @@ public class DatasetGenerator {
             writeToCsv(csvFilePath, csvData);
 
         } catch (IOException | GitAPIException e) {
-            // --- MODIFICA 1 ---
-            // L'eccezione viene loggata e rilanciata con un messaggio contestuale.
+            // Il blocco catch è già corretto.
             log.error("Error during dataset generation for {}", this.projectName, e);
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
         }
@@ -181,8 +180,6 @@ public class DatasetGenerator {
                 .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
-                // --- MODIFICA 2 ---
-                // Sostituito .collect(Collectors.toList()) con il più moderno .toList()
                 .toList();
         if (pValues.isEmpty()) return PROPORTION_DEFAULT_COEFFICIENT;
         
