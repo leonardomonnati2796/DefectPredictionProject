@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.security.SecureRandom; // Import per il generatore sicuro
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 
 public class ClassifierRunner {
     private static final Logger log = LoggerFactory.getLogger(ClassifierRunner.class);
