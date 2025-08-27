@@ -9,7 +9,6 @@ import com.ispw2.model.TrackedMethod;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,9 +62,12 @@ public class DatasetGenerator {
             final MethodTracker tracker = new MethodTracker(git);
 
             final List<String[]> csvData = buildCsvData(releases, tickets, releaseCommits, tracker, bugToMethodsMap, pMedian);
+            // --- AGGIUNTO QUESTO LOG DEBUG ---
+            log.info("DEBUG: Il dataset finale contiene {} righe (inclusa l'intestazione) pronte per essere scritte.", csvData.size());
+            // --- FINE AGGIUNTA ---
             writeToCsv(csvFilePath, csvData);
 
-        } catch (IOException | GitAPIException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
         }
     }
@@ -84,6 +86,9 @@ public class DatasetGenerator {
             if (releaseCommit == null) continue;
 
             final List<TrackedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
+             // --- AGGIUNGI QUESTO LOG ---
+            log.info("DEBUG: Trovati {} metodi per la release {}", methods.size(), release.name());
+            // --- FINE AGGIUNTA ---
             for (final TrackedMethod method : methods) {
                 final String[] row = createCsvRow(method, release, tickets, bugToMethodsMap, pMedian);
                 csvData.add(row);

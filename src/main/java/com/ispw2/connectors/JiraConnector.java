@@ -34,32 +34,40 @@ public class JiraConnector {
 
     public JiraConnector(final String projectKey) {
         this.projectKey = projectKey;
+        log.debug("JiraConnector initialized for project key: {}", projectKey);
     }
 
     public List<ProjectRelease> getProjectReleases() throws IOException {
-        log.info("Fetching project releases from JIRA...");
+        log.info("Fetching project releases from JIRA for project {}...", projectKey);
         final String url = String.format("%s/rest/api/2/project/%s/versions", JIRA_URL, projectKey);
         final String jsonResponse = sendGetRequest(url);
 
         final JSONArray versions = new JSONArray(jsonResponse);
         final List<ProjectRelease> releases = new ArrayList<>();
+        log.debug("Found {} versions in total from JIRA API. Filtering for released versions with a date...", versions.length());
         for (int i = 0; i < versions.length(); i++) {
             final JSONObject version = versions.getJSONObject(i);
             if (version.optBoolean("released") && version.has("releaseDate")) {
                 final LocalDate releaseDate = LocalDate.parse(version.getString("releaseDate"));
                 releases.add(new ProjectRelease(version.getString("name"), releaseDate, 0));
+                if(log.isDebugEnabled()){
+                    log.debug("  -> Found valid release: {} ({})", version.getString("name"), releaseDate);
+                }
             }
         }
 
         releases.sort(Comparator.naturalOrder());
         
-        return IntStream.range(0, releases.size())
+        List<ProjectRelease> indexedReleases = IntStream.range(0, releases.size())
                 .mapToObj(i -> new ProjectRelease(releases.get(i).name(), releases.get(i).releaseDate(), i + 1))
                 .toList();
+        
+        log.info("Found {} valid and sorted releases for project {}.", indexedReleases.size(), projectKey);
+        return indexedReleases;
     }
 
     public List<JiraTicket> getBugTickets() throws IOException {
-        log.info("Fetching bug tickets from JIRA (this may take a while)...");
+        log.info("Fetching bug tickets from JIRA for project {} (this may take a while)...", projectKey);
         final List<JiraTicket> tickets = new ArrayList<>();
         int startAt = 0;
         final int maxResults = 100;
@@ -69,12 +77,16 @@ public class JiraConnector {
             final String jql = String.format("project = '%s' AND issuetype = Bug AND status in (Resolved, Closed) AND resolution = Fixed ORDER BY created ASC", projectKey);
             final String url = String.format("%s/rest/api/2/search?jql=%s&fields=key,created,resolutiondate,versions&startAt=%d&maxResults=%d",
                     JIRA_URL, URLEncoder.encode(jql, StandardCharsets.UTF_8), startAt, maxResults);
+            
+            log.debug("Executing JQL query with URL: {}", url);
 
             final String jsonResponse = sendGetRequest(url);
             final JSONObject response = new JSONObject(jsonResponse);
             final JSONArray issues = response.getJSONArray("issues");
+            log.debug("  -> Received {} issues in the current page.", issues.length());
 
             if (issues.isEmpty()) {
+                log.warn("Received an empty page of issues before reaching total. Stopping fetch.");
                 break;
             }
 
@@ -89,7 +101,7 @@ public class JiraConnector {
             }
         } while (startAt < total);
         
-        log.info("Total valid bug tickets fetched: {}", tickets.size());
+        log.info("Total valid bug tickets fetched for {}: {}", projectKey, tickets.size());
         return tickets;
     }
 
@@ -99,7 +111,10 @@ public class JiraConnector {
             final JSONObject fields = issueJson.getJSONObject("fields");
             final String createdString = fields.getString("created");
 
+            log.debug("    Parsing ticket with key: {}", key);
+
             if (key.isEmpty() || createdString.isEmpty()) {
+                log.warn("    Skipping ticket {} due to missing key or creation date.", key);
                 return Optional.empty();
             }
 
@@ -111,6 +126,7 @@ public class JiraConnector {
                     affectedVersions.add(avs.getJSONObject(j).getString("name"));
                 }
             }
+            log.debug("      -> Successfully parsed ticket {} with {} affected versions.", key, affectedVersions.size());
             return Optional.of(new JiraTicket(key, created, affectedVersions));
         } catch (final JSONException e) {
             log.warn("Skipping malformed JIRA ticket for project {}. Reason: {}", this.projectKey, e.getMessage());
@@ -119,10 +135,13 @@ public class JiraConnector {
     }
 
     private String sendGetRequest(final String url) throws IOException {
+        log.debug("Sending HTTP GET request to: {}", url);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final HttpGet request = new HttpGet(url);
             try (CloseableHttpResponse response = httpClient.execute(request)) {
-                if (response.getStatusLine().getStatusCode() != 200) {
+                int statusCode = response.getStatusLine().getStatusCode();
+                log.debug("  -> Received HTTP status code: {}", statusCode);
+                if (statusCode != 200) {
                     throw new IOException("JIRA API request failed: " + response.getStatusLine().toString() + " for URL: " + url);
                 }
                 return EntityUtils.toString(response.getEntity());

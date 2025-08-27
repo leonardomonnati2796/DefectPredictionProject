@@ -40,9 +40,12 @@ public class ClassifierRunner {
     }
     
     public Classifier getBestClassifier() throws IOException {
+        // --- AGGIUNGI QUESTO LOG DI DEBUG ---
+        log.info("Checking for model file at path: {}", modelPath);
+        // --- FINE AGGIUNTA ---
         final File modelFile = new File(modelPath);
         if (modelFile.exists() && modelFile.length() > 0) {
-            log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file...");
+            log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file: {}", modelPath);
             try {
                 return (Classifier) SerializationHelper.read(modelPath);
             } catch (Exception e) {
@@ -54,11 +57,20 @@ public class ClassifierRunner {
         loadData();
         
         if (!isDataSufficientForClassification()) {
+            log.warn("Data is not sufficient for classification. Returning default RandomForest classifier.");
             return new RandomForest();
         }
 
         try {
+            log.debug("Starting base classifier evaluation...");
             final Classifier bestBaseClassifier = findBestBaseClassifier();
+            
+            if (bestBaseClassifier == null) {
+                log.error("No base classifier could be selected. Aborting.");
+                throw new IOException("Classifier selection failed.");
+            }
+            
+            log.debug("Starting hyperparameter tuning for the best classifier...");
             final Classifier tunedClassifier = tuneClassifier(bestBaseClassifier);
             
             log.info("\nSaving tuned model to: {}", modelPath);
@@ -71,6 +83,7 @@ public class ClassifierRunner {
     }
 
     private void loadData() throws IOException {
+        log.debug("Loading data from ARFF file: {}", processedArffPath);
         final ArffLoader loader = new ArffLoader();
         loader.setSource(new File(processedArffPath));
         this.data = loader.getDataSet();
@@ -82,6 +95,7 @@ public class ClassifierRunner {
     }
 
     private boolean isDataSufficientForClassification() {
+        log.debug("Checking if data is sufficient for classification...");
         if (this.data.numInstances() < NUM_FOLDS) {
             log.error("The dataset has fewer than {} instances ({}), not enough for {}-fold cross-validation. Skipping evaluation.", NUM_FOLDS, this.data.numInstances(), NUM_FOLDS);
             return false;
@@ -93,6 +107,7 @@ public class ClassifierRunner {
             }
             return false;
         }
+        log.debug("Data is sufficient.");
         return true;
     }
 
@@ -109,6 +124,10 @@ public class ClassifierRunner {
         }
 
         for (final Classifier classifier : classifiers) {
+            if (log.isDebugEnabled()){
+                log.debug("Evaluating classifier: {}", classifier.getClass().getSimpleName());
+            }
+
             final Evaluation eval = evaluateModel(classifier);
             final double auc = eval.weightedAreaUnderROC();
             final double precision = eval.weightedPrecision();
@@ -120,6 +139,9 @@ public class ClassifierRunner {
             }
 
             if (auc > bestAuc) {
+                if (log.isDebugEnabled()){
+                    log.debug("New best classifier found: {} with AUC = {}", classifier.getClass().getSimpleName(), String.format("%.3f", auc));
+                }
                 bestAuc = auc;
                 bestClassifier = classifier;
             }
@@ -133,8 +155,12 @@ public class ClassifierRunner {
     }
 
     private Evaluation evaluateModel(final Classifier classifier) throws Exception {
+        log.debug("Starting evaluation for {} with {} repeats of {}-fold cross-validation.", classifier.getClass().getSimpleName(), NUM_REPEATS, NUM_FOLDS);
         final Evaluation eval = new Evaluation(this.data);
         for (int i = 0; i < NUM_REPEATS; i++) {
+            if (log.isDebugEnabled()){
+                log.debug("Running cross-validation repeat {}/{} with random seed {}.", i + 1, NUM_REPEATS, i);
+            }
             eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new Random(i));
         }
         return eval;
@@ -159,12 +185,15 @@ public class ClassifierRunner {
 
         if (baseClassifier instanceof RandomForest) {
             final String[] params = config.getRandomForestTuningParams();
+            log.debug("Tuning RandomForest with CVParameter: {}", (Object) params);
             tuner.addCVParameter(String.join(" ", params));
         } else if (baseClassifier instanceof IBk) {
             final String[] params = config.getIbkTuningParams();
+            log.debug("Tuning IBk with CVParameter: {}", (Object) params);
             tuner.addCVParameter(String.join(" ", params));
         }
         
+        log.debug("Building classifier with tuner...");
         tuner.buildClassifier(data);
         if (log.isInfoEnabled()) {
             log.info("Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));

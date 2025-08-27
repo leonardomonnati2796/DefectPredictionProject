@@ -1,10 +1,15 @@
 package com.ispw2.model;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public final class TrackedMethod {
+    private static final Logger log = LoggerFactory.getLogger(TrackedMethod.class);
+
     private final String id;
     private final String signature;
     private final String filepath;
@@ -14,6 +19,9 @@ public final class TrackedMethod {
         this.id = id;
         this.signature = signature;
         this.filepath = filepath;
+        if (log.isDebugEnabled()) {
+            log.debug("Creating new TrackedMethod: id={}, signature='{}', filepath='{}'", id, signature, filepath);
+        }
     }
 
     public String id() { return id; }
@@ -22,10 +30,16 @@ public final class TrackedMethod {
     public Map<String, Number> getFeatures() { return features; }
 
     public void addFeature(final String name, final Number value) {
+        if (log.isDebugEnabled()) {
+            log.debug("Adding feature to method {}: {} = {}", this.id, name, value);
+        }
         this.features.put(name, value);
     }
     
     public void addAllFeatures(final Map<String, Number> newFeatures) {
+        if (log.isDebugEnabled()) {
+            log.debug("Adding {} features to method {}: {}", newFeatures.size(), this.id, newFeatures);
+        }
         this.features.putAll(newFeatures);
     }
 
@@ -44,6 +58,12 @@ public final class TrackedMethod {
 
     @Override
     public String toString() {
-        return "TrackedMethod[id=" + id + ", signature=" + signature + ", filepath=" + filepath + "]";
+        // Migliorato per includere anche le feature, utile per il debug
+        return "TrackedMethod[" +
+                "id=" + id +
+                ", signature='" + signature + '\'' +
+                ", filepath='" + filepath + '\'' +
+                ", features=" + features +
+                ']';
     }
 }

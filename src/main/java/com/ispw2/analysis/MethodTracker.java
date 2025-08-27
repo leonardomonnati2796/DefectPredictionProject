@@ -17,7 +17,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MethodTracker {
     private static final Logger log = LoggerFactory.getLogger(MethodTracker.class);
@@ -30,11 +37,11 @@ public class MethodTracker {
         this.git = git;
     }
 
-    // --- MODIFICA QUI ---
-    // Rimossa la dichiarazione "GitAPIException" perché non è più lanciata dal corpo del metodo.
     public List<TrackedMethod> getMethodsForRelease(final RevCommit releaseCommit) throws IOException {
         final String commitId = releaseCommit.getName();
+        log.debug("Getting all methods for release commit: {}", commitId);
         final List<String> javaFiles = git.getJavaFilesForCommit(commitId);
+        log.debug("Found {} Java files in commit {}", javaFiles.size(), commitId);
 
         final List<TrackedMethod> currentMethods = new ArrayList<>();
         final Map<TrackedMethod, CallableDeclaration<?>> methodAstMap = new HashMap<>();
@@ -52,17 +59,24 @@ public class MethodTracker {
 
         lastKnownMethods.clear();
         currentMethods.forEach(m -> lastKnownMethods.put(m.filepath() + METHOD_KEY_SEPARATOR + m.signature(), m));
+        log.debug("Updated last known methods with {} entries.", lastKnownMethods.size());
 
         return currentMethods;
     }
 
     private void extractMethodsFromFile(final String file, final String commitId, final List<TrackedMethod> currentMethods, final Map<TrackedMethod, CallableDeclaration<?>> methodAstMap) throws IOException {
+        log.debug("Parsing file for methods: {}", file);
         final String content = git.getFileContent(file, commitId);
-        if (content == null || content.isEmpty()) return;
+        if (content == null || content.isEmpty()) {
+            log.warn("File content is empty for {}. Skipping.", file);
+            return;
+        }
 
         try {
             final CompilationUnit cu = StaticJavaParser.parse(content);
+            AtomicInteger count = new AtomicInteger(0);
             cu.findAll(CallableDeclaration.class).forEach(callable -> {
+                count.incrementAndGet();
                 final String signature = callable.getSignature().asString();
                 final String fullSignatureKey = file + METHOD_KEY_SEPARATOR + signature;
                 final TrackedMethod existingMethod = lastKnownMethods.get(fullSignatureKey);
@@ -72,35 +86,45 @@ public class MethodTracker {
                 currentMethods.add(trackedMethod);
                 methodAstMap.put(trackedMethod, callable);
             });
+            log.debug("Found {} methods in file {}.", count.get(), file);
         } catch (final ParseProblemException e) {
-            log.warn("Failed to parse Java file: {}. Skipping method extraction.", file);
+            log.warn("Failed to parse Java file: {}. Skipping method extraction. Reason: {}", file, e.getMessage());
         }
     }
 
     private void calculateAllFeatures(final TrackedMethod method, final CallableDeclaration<?> callable, final RevCommit releaseCommit) {
+        log.debug("Calculating all features for method: {}", method.signature());
         method.addAllFeatures(StaticMetricsCalculator.calculateAll(callable));
         method.addFeature(Metrics.DUPLICATION, 0);
 
         try {
             method.addAllFeatures(calculateChangeHistoryFeatures(method, callable, releaseCommit));
-        } catch (final GitAPIException | IOException e) {
+        } catch (final IOException e) {
             log.warn("Could not compute change history for method {}. Using placeholder values.", method.signature(), e);
             method.addAllFeatures(getPlaceholderChangeFeatures());
         }
     }
 
-    private Map<String, Number> calculateChangeHistoryFeatures(final TrackedMethod trackedMethod, final CallableDeclaration<?> callable, final RevCommit releaseCommit) throws GitAPIException, IOException {
+    private Map<String, Number> calculateChangeHistoryFeatures(final TrackedMethod trackedMethod, final CallableDeclaration<?> callable, final RevCommit releaseCommit) throws IOException {
+        log.debug("Calculating change history for method '{}' in file {}...", trackedMethod.signature(), trackedMethod.filepath());
         final int methodStartLine = callable.getBegin().map(p -> p.line).orElse(-1);
         if (methodStartLine == -1) return getPlaceholderChangeFeatures();
         final int methodEndLine = callable.getEnd().map(p -> p.line).orElse(-1);
 
         final ChangeMetrics metrics = new ChangeMetrics();
-        final Iterable<RevCommit> commits = git.getGit().log().add(releaseCommit.getId()).addPath(trackedMethod.filepath()).call();
-
-        for (final RevCommit commit : commits) {
-            if (commit.getParentCount() > 0) {
-                isMethodTouchedInCommit(trackedMethod.filepath(), commit, methodStartLine, methodEndLine, metrics);
+        try {
+            final Iterable<RevCommit> commits = git.getGit().log().add(releaseCommit.getId()).addPath(trackedMethod.filepath()).call();
+            
+            int commitCount = 0;
+            for (final RevCommit commit : commits) {
+                commitCount++;
+                if (commit.getParentCount() > 0) {
+                    isMethodTouchedInCommit(trackedMethod.filepath(), commit, methodStartLine, methodEndLine, metrics);
+                }
             }
+            log.debug("Analyzed {} commits for method history.", commitCount);
+        } catch (GitAPIException e) {
+            throw new IOException("Failed to get commit log for file " + trackedMethod.filepath(), e);
         }
         
         return metrics.toMap();
@@ -130,7 +154,6 @@ public class MethodTracker {
         }
     }
     
-    // Inner class to handle change metrics calculation
     private static class ChangeMetrics {
         private final Set<String> authors = new HashSet<>();
         private int revisionCount = 0;

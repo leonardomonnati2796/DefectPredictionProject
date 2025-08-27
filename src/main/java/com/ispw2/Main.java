@@ -11,6 +11,9 @@ import com.ispw2.preprocessing.DataPreprocessor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.slf4j.bridge.SLF4JBridgeHandler;
+
 import weka.classifiers.Classifier;
 
 import java.io.File;
@@ -33,7 +36,6 @@ public class Main {
     private static final String DATASETS_DIR_NAME = "datasets";
     private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
 
-    // --- MODIFICA 1: Aggiunto 'releases' al record ---
     private record ProjectContext(
         ConfigurationManager config,
         String projectName,
@@ -48,17 +50,27 @@ public class Main {
     ) {}
 
     public static void main(final String[] args) {
+
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
+        
         log.info("Starting Defect Prediction Analysis...");
         
         final ConfigurationManager config = new ConfigurationManager();
 
         try {
+            log.debug("Setting up project directories...");
             final String executionDir = System.getProperty("user.dir");
             final Path projectRoot = Paths.get(executionDir).getParent();
             
             if (projectRoot == null) {
                 log.error("Cannot determine parent directory. Please run from within the project folder.");
                 return;
+            }
+            
+            if(log.isDebugEnabled()){
+                log.debug("Execution directory: {}", executionDir);
+                log.debug("Project root determined as: {}", projectRoot);
             }
             
             final Path datasetsPath = projectRoot.resolve(DATASETS_DIR_NAME);
@@ -81,13 +93,20 @@ public class Main {
     }
 
     private static void processAllProjects(ConfigurationManager config, Path datasetsPath, Path gitProjectsPath) {
+        log.debug("Starting to process all configured projects...");
         for (final Project project : PROJECTS_TO_ANALYZE) {
+            MDC.put("projectName", project.name());
+            log.debug("--- Start processing project: {} ---", project.name());
             try {
                 runPipelineFor(config, project, datasetsPath.toString(), gitProjectsPath.toString());
             } catch (Exception e) {
                 log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
+            } finally {
+                log.debug("--- Finished processing project: {} ---", project.name());
+                MDC.clear();
             }
         }
+        log.debug("All configured projects have been processed.");
     }
 
     private static void runPipelineFor(ConfigurationManager config, final Project project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
@@ -107,18 +126,21 @@ public class Main {
         final List<ProjectRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
         
-        // --- MODIFICA 2: Passato 'releases' al costruttore del contesto ---
         ProjectContext context = new ProjectContext(config, project.name(), datasetsBasePath, originalCsvPath, processedArffPath, modelPath, git, jira, releases, releaseCommits);
+        
+        if (log.isDebugEnabled()) {
+            log.debug("Created project context for pipeline: {}", context);
+        }
 
         generateDatasetIfNotExists(context);
         preprocessData(context);
-        
         runAnalysisAndSimulation(context);
         
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
     private static void runAnalysisAndSimulation(ProjectContext context) {
+        log.debug("Entering analysis and simulation phase...");
         try {
             final ClassifierRunner runner = new ClassifierRunner(context.config(), context.processedArffPath(), context.modelPath());
             final Classifier bestModel = runner.getBestClassifier();
@@ -130,25 +152,30 @@ public class Main {
             simulator.runFullDatasetSimulation();
 
             final String originalMethodPath = Paths.get(context.datasetsBasePath(), context.projectName() + "_AFMethod.txt").toString();
-            final String refactoredMethodPath = Paths.get(context.datasetsBasePath(), "AFMethod_refactored", context.projectName() + "_AFMethod_refactored.txt").toString();
+            final Path projectParentPath = Paths.get(context.datasetsBasePath()).getParent();
+            final String refactoredMethodPath = projectParentPath.resolve("AFMethod_refactored").resolve(context.projectName() + "_AFMethod_refactored.txt").toString();
             
+            if (log.isDebugEnabled()){
+                log.debug("Comparing original method at '{}' with refactored method at '{}'", originalMethodPath, refactoredMethodPath);
+            }
             final FeatureComparer comparer = new FeatureComparer();
             comparer.compareMethods(originalMethodPath, refactoredMethodPath);
 
         } catch (Exception e) {
             log.error("An error occurred during analysis and simulation for project {}", context.projectName(), e);
         }
+        log.debug("Analysis and simulation phase finished.");
     }
 
     private static void generateDatasetIfNotExists(ProjectContext context) {
         log.info("[Milestone 1, Step 1] Checking for Dataset...");
         final File datasetFile = new File(context.originalCsvPath());
+        log.debug("Checking for dataset file at: {}", context.originalCsvPath());
         
         if (datasetFile.exists() && datasetFile.length() > 0) {
             log.info("Dataset already exists. Skipping generation.");
         } else {
             log.info("Dataset not found or is empty. Generating...");
-            // --- MODIFICA 3: Aggiunto context.releases() alla chiamata ---
             final DatasetGenerator generator = new DatasetGenerator(context.config(), context.projectName(), context.git(), context.jira(), context.releases(), context.releaseCommits());
             generator.generateCsv(context.datasetsBasePath());
             log.info("Dataset generation complete.");
@@ -158,9 +185,11 @@ public class Main {
     private static void preprocessData(ProjectContext context) throws IOException {
         log.info("[...] Preprocessing data for analysis...");
         final File arffFile = new File(context.processedArffPath());
+        log.debug("Checking for preprocessed file at: {}", context.processedArffPath());
         if (arffFile.exists() && arffFile.length() > 0) {
             log.info("Processed ARFF file already exists. Skipping preprocessing.");
         } else {
+            log.info("ARFF file not found. Starting preprocessing...");
             try {
                 final DataPreprocessor processor = new DataPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
                 processor.processData();

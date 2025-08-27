@@ -25,15 +25,24 @@ public class FeatureComparer {
     }
 
     private Map<String, Number> extractStaticFeatures(final String filePath) throws IOException {
+        log.debug("Extracting static features from file: {}", filePath);
         final String content = Files.readString(Paths.get(filePath));
-        if (content.isBlank()) return Collections.emptyMap();
+        if (content.isBlank()) {
+            log.warn("File is blank, no features to extract: {}", filePath);
+            return Collections.emptyMap();
+        }
 
         try {
             final String parsableContent = "class DummyWrapper { " + content + " }";
-            return StaticJavaParser.parse(parsableContent)
+            Map<String, Number> features = StaticJavaParser.parse(parsableContent)
                     .findFirst(CallableDeclaration.class)
                     .map(StaticMetricsCalculator::calculateAll)
                     .orElseGet(Collections::emptyMap);
+            
+            if (log.isDebugEnabled()) {
+                log.debug("Extracted features from {}: {}", filePath, features);
+            }
+            return features;
         } catch (final ParseProblemException e) {
             log.error("Error parsing method from file: {}. The content might not be a valid Java method.", filePath, e);
             return Collections.emptyMap();
@@ -41,8 +50,6 @@ public class FeatureComparer {
     }
 
     private void printComparison(final Map<String, Number> before, final Map<String, Number> after) {
-        // --- MODIFICA QUI ---
-        // L'intero blocco di log è stato reso condizionale per ottimizzazione.
         if (log.isInfoEnabled()) {
             log.info(TABLE_SEPARATOR);
             log.info(String.format("%-25s | %-15s | %-15s | %s", "Feature", "Before Refactor", "After Refactor", "Change"));

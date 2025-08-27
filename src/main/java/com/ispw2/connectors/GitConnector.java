@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
 public class GitConnector {
     private static final Logger log = LoggerFactory.getLogger(GitConnector.class);
     private static final String METHOD_KEY_SEPARATOR = "::";
-    // Il pattern Regex viene compilato una sola volta per migliorare le performance.
     private static final Pattern JIRA_TICKET_PATTERN = Pattern.compile("([A-Z][A-Z0-9]+-\\d+)");
 
     private final String projectName;
@@ -53,6 +52,7 @@ public class GitConnector {
 
     public void cloneOrOpenRepo() throws IOException {
         final File repoDir = new File(this.localPath);
+        log.debug("Initializing GitConnector for project '{}' at path '{}'", this.projectName, this.localPath);
         try {
             this.git = Git.open(repoDir);
             this.repository = this.git.getRepository();
@@ -60,11 +60,10 @@ public class GitConnector {
         } catch (final RepositoryNotFoundException e) {
             log.warn("Repository not found at {}. Performing a fresh clone.", this.localPath);
             if (repoDir.exists() && !deleteDirectory(repoDir)) {
-                // Lancia un'eccezione se la pulizia fallisce, invece di continuare.
                 throw new IOException("Could not delete existing, corrupted directory: " + repoDir.getPath());
             }
             try {
-                log.info("Cloning {}...", this.projectName);
+                log.info("Cloning {} from {}...", this.projectName, this.remoteUrl);
                 this.git = Git.cloneRepository()
                         .setURI(this.remoteUrl)
                         .setDirectory(repoDir)
@@ -80,10 +79,13 @@ public class GitConnector {
     public void cleanupRepo() {
         if (this.git != null) {
             this.git.close();
+            log.debug("Git instance closed.");
         }
         final File repoDir = new File(this.localPath);
-        if (repoDir.exists() && log.isInfoEnabled()) {
-             log.info("Cleaning up repository: {}", this.localPath);
+        if (repoDir.exists()) {
+            if (log.isInfoEnabled()) {
+                 log.info("Cleaning up repository: {}", this.localPath);
+            }
             if (deleteDirectory(repoDir)) {
                  log.info("Cleanup successful.");
             } else {
@@ -93,6 +95,7 @@ public class GitConnector {
     }
     
     public Map<String, RevCommit> getReleaseCommits(final List<ProjectRelease> releases) throws IOException {
+        log.debug("Mapping Jira releases to Git commits...");
         final Map<String, RevCommit> releaseCommits = new HashMap<>();
         final Map<String, Ref> tagMap = new HashMap<>();
         try {
@@ -102,15 +105,19 @@ public class GitConnector {
         } catch (final GitAPIException e) {
             throw new IOException("Failed to list git tags.", e);
         }
+        log.debug("Found {} tags in the repository.", tagMap.size());
 
         try (RevWalk walk = new RevWalk(repository)) {
             for (final ProjectRelease release : releases) {
                 final Ref tagRef = findTagRef(release.name(), tagMap);
                 if (tagRef != null) {
                     releaseCommits.put(release.name(), walk.parseCommit(tagRef.getObjectId()));
+                } else {
+                    log.warn("Could not find a matching Git tag for Jira release: {}", release.name());
                 }
             }
         }
+        log.info("Successfully mapped {} of {} Jira releases to Git commits.", releaseCommits.size(), releases.size());
         return releaseCommits;
     }
 
@@ -122,31 +129,38 @@ public class GitConnector {
             this.projectName.toLowerCase() + "-" + releaseName
         );
 
+        if(log.isDebugEnabled()){
+            log.debug("Searching for tag for release '{}'", releaseName);
+        }
         for (String pattern : tagPatterns) {
             if (tagMap.containsKey(pattern)) {
+                log.debug("  -> Found match with pattern: '{}'", pattern);
                 return tagMap.get(pattern);
             }
         }
+        log.debug("  -> No matching tag found for release '{}'", releaseName);
         return null;
     }
 
     public Map<String, List<String>> getBugToMethodsMap(final List<JiraTicket> tickets) throws IOException {
+        log.info("Mapping bug tickets to affected methods...");
         final Map<String, List<String>> bugToMethods = new HashMap<>();
         try (RevWalk revWalk = new RevWalk(repository)) {
             for (final JiraTicket ticket : tickets) {
                 if (ticket.getFixCommitHash() != null) {
+                    log.debug("Analyzing ticket {}: commit {}", ticket.getKey(), ticket.getFixCommitHash());
                     final RevCommit commit = revWalk.parseCommit(repository.resolve(ticket.getFixCommitHash()));
                     if (commit.getParentCount() > 0) {
                         final RevCommit parent = revWalk.parseCommit(commit.getParent(0).getId());
                         final List<DiffEntry> diffs = getDiff(parent, commit);
                         final Set<String> affectedMethods = new HashSet<>();
                         for (final DiffEntry diff : diffs) {
-                            // La condizione complessa è stata estratta in un metodo per leggibilità.
                             if (isJavaFileModification(diff)) {
                                 affectedMethods.addAll(getModifiedMethods(diff, commit));
                             }
                         }
                         bugToMethods.put(ticket.getKey(), new ArrayList<>(affectedMethods));
+                        log.debug("  -> Found {} affected methods for ticket {}.", affectedMethods.size(), ticket.getKey());
                     }
                 }
             }
@@ -159,15 +173,16 @@ public class GitConnector {
     }
 
     private Set<String> getModifiedMethods(final DiffEntry diff, final RevCommit commit) throws IOException {
-        // Usa un Set per evitare di aggiungere lo stesso metodo più volte.
         final Set<String> modifiedMethods = new HashSet<>();
         final String newPath = diff.getNewPath();
+        log.debug("    Scanning modified file: {}", newPath);
         final String fileContent = getFileContent(newPath, commit.getName());
         if (fileContent.isEmpty()) return modifiedMethods;
         
         final List<MethodDeclaration> methods;
         try {
             methods = StaticJavaParser.parse(fileContent).findAll(MethodDeclaration.class);
+            log.debug("      Parsed {} methods from file.", methods.size());
         } catch (final ParseProblemException e) { 
             log.warn("Failed to parse Java file during diff: {}. Details: {}", newPath, e.getMessage());
             return Collections.emptySet();
@@ -178,7 +193,6 @@ public class GitConnector {
             final FileHeader fileHeader = diffFormatter.toFileHeader(diff);
             for (final Edit edit : fileHeader.toEditList()) {
                 for (final MethodDeclaration method : methods) {
-                    // Controlla se il range di linee di una modifica (edit) si sovrappone al range di linee di un metodo.
                     if (method.getRange().isPresent() &&
                         Math.max(method.getRange().get().begin.line, edit.getBeginB()) <= Math.min(method.getRange().get().end.line, edit.getEndB())) {
                         modifiedMethods.add(newPath + METHOD_KEY_SEPARATOR + method.getSignature().asString());
@@ -186,29 +200,41 @@ public class GitConnector {
                 }
             }
         }
+        log.debug("      Identified {} modified methods in the diff.", modifiedMethods.size());
         return modifiedMethods;
     }
 
-    public void findAndSetFixCommits(final List<JiraTicket> tickets) throws GitAPIException, IOException {
+    public void findAndSetFixCommits(final List<JiraTicket> tickets) throws IOException {
+        log.info("Scanning commit history to find fix commits...");
         final Map<String, JiraTicket> ticketMap = new HashMap<>();
         for (final JiraTicket ticket : tickets) {
             ticketMap.put(ticket.getKey(), ticket);
         }
-        final Iterable<RevCommit> commits = git.log().all().call();
-        for (final RevCommit commit : commits) {
-            final Matcher matcher = JIRA_TICKET_PATTERN.matcher(commit.getFullMessage());
-            while (matcher.find()) {
-                final String ticketKey = matcher.group(1);
-                final JiraTicket ticket = ticketMap.get(ticketKey);
-                if (ticket != null && ticket.getFixCommitHash() == null) {
-                    ticket.setFixCommitHash(commit.getName());
-                    ticket.setResolutionDate(LocalDateTime.ofInstant(commit.getAuthorIdent().getWhenAsInstant(), ZoneId.systemDefault()));
+        
+        int foundCount = 0;
+        try {
+            final Iterable<RevCommit> commits = git.log().all().call();
+            for (final RevCommit commit : commits) {
+                final Matcher matcher = JIRA_TICKET_PATTERN.matcher(commit.getFullMessage());
+                while (matcher.find()) {
+                    final String ticketKey = matcher.group(1);
+                    final JiraTicket ticket = ticketMap.get(ticketKey);
+                    if (ticket != null && ticket.getFixCommitHash() == null) {
+                        log.debug("Found fix commit for ticket {}: {}", ticketKey, commit.getName());
+                        ticket.setFixCommitHash(commit.getName());
+                        ticket.setResolutionDate(LocalDateTime.ofInstant(commit.getAuthorIdent().getWhenAsInstant(), ZoneId.systemDefault()));
+                        foundCount++;
+                    }
                 }
             }
+        } catch (GitAPIException e) {
+            throw new IOException("Failed to read commit log.", e);
         }
+        log.info("Associated fix commits with {} tickets.", foundCount);
     }
 
     private List<DiffEntry> getDiff(final RevCommit commit1, final RevCommit commit2) throws IOException {
+        log.debug("Generating diff between {} and {}", commit1.getName(), commit2.getName());
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             diffFormatter.setRepository(repository);
             diffFormatter.setDetectRenames(true);
@@ -223,8 +249,8 @@ public class GitConnector {
     }
 
     public List<String> getJavaFilesForCommit(final String commitId) throws IOException {
+        log.debug("Listing all Java files for commit {}", commitId);
         final List<String> javaFiles = new ArrayList<>();
-        // Il metodo non esegue più un 'checkout', ma ispeziona direttamente il commit.
         try (RevWalk revWalk = new RevWalk(repository)) {
             RevCommit commit = revWalk.parseCommit(repository.resolve(commitId));
             try (TreeWalk treeWalk = new TreeWalk(repository)) {
@@ -238,10 +264,12 @@ public class GitConnector {
                 }
             }
         }
+        log.debug("Found {} Java files.", javaFiles.size());
         return javaFiles;
     }
 
     public String getFileContent(final String filePath, final String commitId) throws IOException {
+        log.debug("Reading file content for '{}' at commit '{}'", filePath, commitId);
         final ObjectId objId = repository.resolve(commitId + ":" + filePath);
         if (objId == null) {
             log.warn("Could not resolve file path '{}' in commit '{}'", filePath, commitId);

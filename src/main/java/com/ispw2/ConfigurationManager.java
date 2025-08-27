@@ -23,6 +23,7 @@ public class ConfigurationManager {
     private final Properties properties;
 
     public ConfigurationManager() {
+        log.debug("Initializing ConfigurationManager and loading properties...");
         properties = new Properties();
         try (InputStream input = ConfigurationManager.class.getResourceAsStream(CONFIG_FILE)) {
             if (input == null) {
@@ -30,13 +31,11 @@ public class ConfigurationManager {
                 return;
             }
             properties.load(input);
+            log.info("Configuration properties loaded successfully from {}.", CONFIG_FILE);
         } catch (final IOException e) {
             log.error("Error loading configuration file", e);
         }
     }
-
-    // Il metodo getInstance() viene rimosso.
-    // I metodi per ottenere le proprietà rimangono invariati ma non sono più statici.
 
     public double getReleaseCutoffPercentage() {
         return Double.parseDouble(properties.getProperty(KEY_RELEASE_CUTOFF, "0.5"));

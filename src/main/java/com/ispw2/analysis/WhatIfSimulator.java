@@ -11,10 +11,6 @@ import java.io.IOException;
 public class WhatIfSimulator {
     private static final Logger log = LoggerFactory.getLogger(WhatIfSimulator.class);
     
-    private static final String TABLE_SEPARATOR = "------------------------------------------------------------------";
-    private static final String TABLE_HEADER_FORMAT = "| %-20s | %-15s | %-15s |";
-    private static final String TABLE_ROW_FORMAT = "| %-20s | %-15d | %-15d |";
-
     private final String processedArffPath;
     private Instances datasetA;
     private final Classifier bClassifier;
@@ -29,8 +25,7 @@ public class WhatIfSimulator {
     public void runFullDatasetSimulation() throws IOException {
         this.datasetA = DataHelper.loadArff(processedArffPath);
         this.datasetA.setClassIndex(this.datasetA.numAttributes() - 1);
-
-        log.info("[Milestone 2, Step 10] Creating Defect Prediction Datasets using AFeature: {}", this.aFeatureName);
+        log.info("[Milestone 2, Step 10] Starting What-If Simulation using AFeature: {}", this.aFeatureName);
         
         final Attribute aFeatureAttribute = datasetA.attribute(this.aFeatureName);
         if (aFeatureAttribute == null) {
@@ -38,13 +33,20 @@ public class WhatIfSimulator {
             return;
         }
 
+        log.debug("Splitting dataset into B+ (at-risk) and C (safe) subsets.");
         final Instances datasetBplus = DataHelper.filterInstances(datasetA, this.aFeatureName, ">", 0);
         final Instances datasetC = DataHelper.filterInstances(datasetA, this.aFeatureName, "<=", 0);
+        if (log.isDebugEnabled()) {
+            log.debug("Dataset B+ ({} > 0) contains {} instances.", aFeatureName, datasetBplus.numInstances());
+            log.debug("Dataset C ({} <= 0) contains {} instances.", aFeatureName, datasetC.numInstances());
+        }
+
+        log.debug("Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
         final Instances datasetB = createSyntheticDatasetB(datasetBplus, this.aFeatureName);
 
-        log.info("[Milestone 2, Step 11] Using pre-trained and tuned BClassifier.");
-
-        printResultsTable(datasetBplus, datasetB, datasetC);
+        // --- MODIFICA QUI: La tabella riassuntiva è stata reinserita ---
+        logSimulationSummaryTable(datasetA, datasetBplus, datasetB, datasetC);
+        
         analyzeResults(datasetBplus, datasetB);
     }
     
@@ -57,47 +59,74 @@ public class WhatIfSimulator {
         }
         return datasetB;
     }
+    
+    // --- NUOVO METODO PER STAMPARE LA TABELLA RIASSUNTIVA ---
+    private void logSimulationSummaryTable(final Instances dataA, final Instances bPlus, final Instances b, final Instances c) {
+        log.info("[Milestone 2, Step 12] Defect Prediction Summary Table:");
 
-    private void printResultsTable(final Instances bPlus, final Instances b, final Instances c) {
-        log.info("[Milestone 2, Step 12] Predicting Defectiveness...");
-        final int defectsInA = DataHelper.countDefective(this.bClassifier, this.datasetA);
-        final int defectsInBplus = DataHelper.countDefective(this.bClassifier, bPlus);
-        final int defectsInB = DataHelper.countDefective(this.bClassifier, b);
-        final int defectsInC = DataHelper.countDefective(this.bClassifier, c);
-
-        // --- MODIFICA QUI ---
-        // L'intero blocco di log per la tabella è ora condizionale.
         if (log.isInfoEnabled()) {
-            log.info(TABLE_SEPARATOR);
-            log.info("                   DEFECT PREDICTION ANALYSIS RESULTS                   ");
-            log.info(TABLE_SEPARATOR);
-            log.info(String.format(TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));
-            log.info(TABLE_SEPARATOR);
-            log.info(String.format(TABLE_ROW_FORMAT, "A (Full Dataset)", this.datasetA.numInstances(), defectsInA));
-            log.info(String.format(TABLE_ROW_FORMAT, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
-            log.info(String.format(TABLE_ROW_FORMAT, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
-            log.info(String.format(TABLE_ROW_FORMAT, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
-            log.info(TABLE_SEPARATOR);
+            // Calcola tutti i difetti predetti necessari per la tabella
+            int defectsInA = DataHelper.countDefective(bClassifier, dataA);
+            int defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
+            int defectsInB = DataHelper.countDefective(bClassifier, b);
+            int defectsInC = DataHelper.countDefective(bClassifier, c);
+
+            // Definisce la formattazione della tabella
+            String separator = "------------------------------------------------------------------";
+            String headerFormat = "| %-20s | %-15s | %-15s |";
+            String rowFormat = "| %-20s | %-15d | %-15d |";
+
+            log.info(separator);
+            log.info(String.format(headerFormat, "Dataset", "Total Instances", "Predicted Defects"));
+            log.info(separator);
+            log.info(String.format(rowFormat, "A (Full Dataset)", dataA.numInstances(), defectsInA));
+            log.info(String.format(rowFormat, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
+            log.info(String.format(rowFormat, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
+            log.info(String.format(rowFormat, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
+            log.info(separator);
         }
     }
 
     private void analyzeResults(final Instances bPlus, final Instances b) {
-        log.info("[Milestone 2, Step 13] Final Analysis...");
-        final double defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
-        final double defectsInB = DataHelper.countDefective(bClassifier, b);
-        
-        if (defectsInBplus > 0) {
-            final double preventable = defectsInBplus - defectsInB;
-            final double reduction = (preventable / defectsInBplus) * 100;
+        log.info("[Milestone 2, Step 13] Calculating final metrics based on custom formulas...");
 
-            // --- MODIFICA QUI ---
-            // Le chiamate di log sono state rese condizionali.
+        // Calcolo dei componenti per le formule
+        final int actualDefectsInA = DataHelper.countActualDefective(this.datasetA);
+        final int actualDefectsInBplus = DataHelper.countActualDefective(bPlus);
+        final int predictedDefectsInB = DataHelper.countDefective(bClassifier, b);
+
+        if(log.isDebugEnabled()){
+            log.debug("--- Formula Components ---");
+            log.debug("Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
+            log.debug("Predicted Defects in B (expected B) = {}", predictedDefectsInB);
+            log.debug("Actual Defects in A (actual A) = {}", actualDefectsInA);
+            log.debug("--------------------------");
+        }
+
+        double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
+
+        // Formula 1: DROP
+        if (actualDefectsInBplus > 0) {
+            double drop = numerator / actualDefectsInBplus;
             if (log.isInfoEnabled()) {
-                log.info("Simulating code smell reduction dropped predicted defects from {} to {} (a {}% reduction).", defectsInBplus, defectsInB, String.format("%.1f", reduction));
-                log.info("ANSWER: An estimated {} buggy methods could have been prevented by reducing {}.", String.format("%.0f", preventable), aFeatureName);
+                log.info("Formula 1 (drop) = (actual B+ - expected B) / actual B+ = ({} - {}) / {} = {}",
+                    actualDefectsInBplus, predictedDefectsInB, actualDefectsInBplus, String.format("%.3f", drop));
+                log.info("ANSWER 1 (drop): The calculated metric value is {}.", String.format("%.3f", drop));
             }
         } else {
-            log.info("No defects were predicted in the 'at-risk' group (B+).");
+            log.warn("Cannot calculate 'drop' metric because there are no actual defects in the B+ dataset (division by zero).");
+        }
+
+        // Formula 2: REDUCTION
+        if (actualDefectsInA > 0) {
+            double reduction = numerator / actualDefectsInA;
+            if (log.isInfoEnabled()) {
+                log.info("Formula 2 (reduction) = (actual B+ - expected B) / actual A = ({} - {}) / {} = {}",
+                    actualDefectsInBplus, predictedDefectsInB, actualDefectsInA, String.format("%.3f", reduction));
+                log.info("ANSWER 2 (reduction): The calculated metric value is {}.", String.format("%.3f", reduction));
+            }
+        } else {
+            log.warn("Cannot calculate 'reduction' metric because there are no actual defects in the full dataset (division by zero).");
         }
     }
 }

@@ -1,0 +1,24 @@
+---------------------------------------------------------
+--- STARTING PIPELINE FOR: OPENJPA ---
+---------------------------------------------------------
+Opening existing repository: C:\Users\hp\Desktop\DefectPredictionProjectFinal\github_projects\OPENJPA
+Fetching project releases from JIRA for project OPENJPA...
+Found 42 valid and sorted releases for project OPENJPA.
+Could not find a matching Git tag for Jira release: 0.9.0
+Could not find a matching Git tag for Jira release: 0.9.6
+Could not find a matching Git tag for Jira release: 0.9.7
+Could not find a matching Git tag for Jira release: 2.0.0-M1
+Could not find a matching Git tag for Jira release: 2.0.0-M2
+Successfully mapped 37 of 42 Jira releases to Git commits.
+[Milestone 1, Step 1] Checking for Dataset...
+Dataset already exists. Skipping generation.
+[...] Preprocessing data for analysis...
+Processed ARFF file already exists. Skipping preprocessing.
+Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_best.model
+
+[Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...
+Loaded 162679 instances from C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_processed.arff
+--- Evaluating base classifiers on the original (imbalanced) dataset ---
+----------------------------------------------------------------------
+Classifier           | AUC        | Precision  | Recall     | Kappa     
+----------------------------------------------------------------------

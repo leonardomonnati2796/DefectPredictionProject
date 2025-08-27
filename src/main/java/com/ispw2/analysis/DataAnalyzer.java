@@ -62,8 +62,8 @@ public class DataAnalyzer {
         this.releaseCommits = releaseCommits;
     }
 
-    // --- MODIFICA 1: Cambiato il tipo di ritorno da 'void' a 'String' ---
     public String findAndSaveActionableMethod() throws IOException {
+        log.info("Starting data analysis to find actionable method...");
         try {
             final Instances data = DataHelper.loadArff(processedArffPath);
             data.setClassIndex(data.numAttributes() - 1);
@@ -74,10 +74,10 @@ public class DataAnalyzer {
             if (afMethodRecordOpt.isPresent()) {
                 saveMethodSourceToFile(afMethodRecordOpt.get());
             } else {
-                log.warn("Skipping Step 7 as no AFMethod was identified.");
+                log.warn("Skipping file saving as no AFMethod was identified.");
             }
             
-            // --- MODIFICA 2: Aggiunto il return statement ---
+            log.info("Data analysis completed.");
             return aFeature;
         } catch (Exception e) {
             throw new IOException("Failed during data analysis.", e);
@@ -91,12 +91,21 @@ public class DataAnalyzer {
         selector.setSearch(new Ranker());
         selector.SelectAttributes(data);
         
+        if (log.isDebugEnabled()) {
+            StringBuilder rankedFeaturesLog = new StringBuilder("Ranked Features (InfoGain):\n");
+            for (double[] rankedAttribute : selector.rankedAttributes()) {
+                rankedFeaturesLog.append(String.format("  - %s: %.4f\n", data.attribute((int) rankedAttribute[0]).name(), rankedAttribute[1]));
+            }
+            log.debug(rankedFeaturesLog.toString());
+        }
+        
         final List<String> actionableFeatures = config.getActionableFeatures();
+        log.debug("Actionable features from config: {}", actionableFeatures);
         
         for (final double[] rankedAttribute : selector.rankedAttributes()) {
             final String featureName = data.attribute((int) rankedAttribute[0]).name();
             if (actionableFeatures.contains(featureName)) {
-                log.info("Identified AFeature: {}", featureName);
+                log.info("Identified Top Actionable Feature (AFeature): {}", featureName);
                 return featureName;
             }
         }
@@ -107,6 +116,8 @@ public class DataAnalyzer {
     
     private Optional<CSVRecord> findTargetMethodRecord(final String aFeature) throws IOException {
         log.info("[Milestone 2, Step 6] Identifying Target Method (AFMethod)...");
+        log.debug("Searching for target method using AFeature: {}", aFeature);
+        
         final List<CSVRecord> records = DataHelper.readCsv(originalCsvPath);
         if (records.isEmpty()) {
             log.warn("Dataset is empty, cannot find AFMethod.");
@@ -132,14 +143,18 @@ public class DataAnalyzer {
         
         if (targetRecord.isPresent() && log.isInfoEnabled()) {
             log.info("Identified AFMethod (buggy method with highest {}):", aFeature);
-            log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
-            log.info("  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
+            if (log.isDebugEnabled()){
+                log.debug("  -> Full Record: {}", targetRecord.get().toMap());
+            } else {
+                log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
+                log.info("  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
+            }
         }
         return targetRecord;
     }
     
     private void saveMethodSourceToFile(final CSVRecord methodRecord) {
-        log.info("[Milestone 2, Step 7] Saving AFMethod source code and preparing for refactoring...");
+        log.info("[Milestone 2, Step 7] Saving AFMethod source code...");
         final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
         if (identifierOpt.isEmpty()) {
             if (log.isErrorEnabled()) {
@@ -148,6 +163,7 @@ public class DataAnalyzer {
             return;
         }
         final MethodIdentifier identifier = identifierOpt.get();
+        log.debug("Attempting to save source for method: {}", identifier);
         
         final String releaseName = methodRecord.get(CSV_COL_RELEASE);
         final RevCommit commit = releaseCommits.get(releaseName);
@@ -155,10 +171,14 @@ public class DataAnalyzer {
             log.error("Could not find commit for release: {}", releaseName);
             return;
         }
+        log.debug("Using commit {} for release {}", commit.getName(), releaseName);
 
         try {
             final String fileContent = git.getFileContent(identifier.filePath(), commit.getName());
-            if (fileContent.isEmpty()) return;
+            if (fileContent.isEmpty()) {
+                log.warn("File content is empty for {}. Cannot extract method source.", identifier.filePath());
+                return;
+            }
 
             final Optional<String> methodSourceOpt = StaticJavaParser.parse(fileContent)
                     .findAll(CallableDeclaration.class).stream()
@@ -167,6 +187,7 @@ public class DataAnalyzer {
                     .map(CallableDeclaration::toString);
 
             if (methodSourceOpt.isPresent()) {
+                log.debug("Successfully found and parsed method source code.");
                 handleFileSaving(methodSourceOpt.get());
             } else {
                  log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.filePath());
@@ -180,6 +201,7 @@ public class DataAnalyzer {
 
     private void handleFileSaving(String methodSource) throws IOException {
         final Path datasetsPath = Paths.get(originalCsvPath).getParent();
+        log.debug("Preparing to save files in and alongside directory: {}", datasetsPath);
                 
         final String originalFileName = git.getProjectName() + ORIGINAL_AFMETHOD_FILENAME_SUFFIX;
         final Path originalOutputPath = datasetsPath.resolve(originalFileName);
@@ -189,7 +211,11 @@ public class DataAnalyzer {
             log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
         }
 
-        final Path refactoredDirPath = datasetsPath.resolve(REFACTORED_AFMETHOD_DIR);
+        final Path projectParentPath = datasetsPath.getParent();
+        if (projectParentPath == null) {
+            throw new IOException("Cannot determine the parent directory of the datasets folder.");
+        }
+        final Path refactoredDirPath = projectParentPath.resolve(REFACTORED_AFMETHOD_DIR);
         Files.createDirectories(refactoredDirPath);
         
         final String refactoredFileName = git.getProjectName() + REFACTORED_AFMETHOD_FILENAME_SUFFIX;

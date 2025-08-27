@@ -1,6 +1,9 @@
 package com.ispw2.preprocessing;
 
 import com.ispw2.ConfigurationManager;
+// --- MODIFICA 1: Corretto l'import del Logger ---
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -27,6 +30,10 @@ import java.util.List;
 import java.util.Locale;
 
 public class DataPreprocessor {
+
+    // --- MODIFICA 2: Spostata qui la dichiarazione del logger ---
+    private static final Logger log = LoggerFactory.getLogger(DataPreprocessor.class);
+
     private final ConfigurationManager config;
     private final String inputCsvPath;
     private final String outputArffPath;
@@ -39,27 +46,33 @@ public class DataPreprocessor {
     private static final String REMOVE_INDICES = "1-3";
 
     public DataPreprocessor(ConfigurationManager config, final String inputCsvPath, final String outputArffPath) {
+        // La dichiarazione del logger è stata rimossa da qui.
         this.config = config;
         this.inputCsvPath = inputCsvPath;
         this.outputArffPath = outputArffPath;
     }
 
     public void processData() throws Exception {
+        log.info("Starting data preprocessing for {}...", this.inputCsvPath);
         final Instances rawData = loadCsvManually(this.inputCsvPath);
         rawData.setClassIndex(rawData.numAttributes() - 1);
+        log.debug("Loaded {} raw instances from CSV.", rawData.numInstances());
 
         final Remove removeFilter = new Remove();
         removeFilter.setAttributeIndices(REMOVE_INDICES); 
         removeFilter.setInputFormat(rawData);
         final Instances dataWithoutIds = Filter.useFilter(rawData, removeFilter);
+        log.debug("Instances after removing ID attributes: {}", dataWithoutIds.numInstances());
 
         final ReplaceMissingValues missingValuesFilter = new ReplaceMissingValues();
         missingValuesFilter.setInputFormat(dataWithoutIds);
         final Instances dataImputed = Filter.useFilter(dataWithoutIds, missingValuesFilter);
+        log.debug("Instances after imputing missing values: {}", dataImputed.numInstances());
         
         final Normalize normalizeFilter = new Normalize();
         normalizeFilter.setInputFormat(dataImputed);
         final Instances dataNormalized = Filter.useFilter(dataImputed, normalizeFilter);
+        log.debug("Instances after normalization: {}", dataNormalized.numInstances());
 
         final AttributeSelection attributeSelectionFilter = new AttributeSelection();
         attributeSelectionFilter.setEvaluator(new InfoGainAttributeEval());
@@ -68,12 +81,15 @@ public class DataPreprocessor {
         attributeSelectionFilter.setSearch(search);
         attributeSelectionFilter.setInputFormat(dataNormalized);
         final Instances dataSelected = Filter.useFilter(dataNormalized, attributeSelectionFilter);
+        log.debug("Instances after feature selection ({} features): {}", dataSelected.numAttributes() - 1, dataSelected.numInstances());
 
         final NominalToBinary nominalToBinaryFilter = new NominalToBinary();
         nominalToBinaryFilter.setInputFormat(dataSelected);
         final Instances finalData = Filter.useFilter(dataSelected, nominalToBinaryFilter);
+        log.debug("Instances after NominalToBinary filter: {}", finalData.numInstances());
         
         saveToArff(finalData, this.outputArffPath);
+        log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numInstances(), finalData.numAttributes());
     }
 
     private Instances loadCsvManually(final String csvPath) throws IOException {
