@@ -1,7 +1,6 @@
 package com.ispw2.preprocessing;
 
 import com.ispw2.ConfigurationManager;
-// --- MODIFICA 1: Corretto l'import del Logger ---
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.csv.CSVFormat;
@@ -31,7 +30,6 @@ import java.util.Locale;
 
 public class DataPreprocessor {
 
-    // --- MODIFICA 2: Spostata qui la dichiarazione del logger ---
     private static final Logger log = LoggerFactory.getLogger(DataPreprocessor.class);
 
     private final ConfigurationManager config;
@@ -46,7 +44,6 @@ public class DataPreprocessor {
     private static final String REMOVE_INDICES = "1-3";
 
     public DataPreprocessor(ConfigurationManager config, final String inputCsvPath, final String outputArffPath) {
-        // La dichiarazione del logger è stata rimossa da qui.
         this.config = config;
         this.inputCsvPath = inputCsvPath;
         this.outputArffPath = outputArffPath;
@@ -89,7 +86,7 @@ public class DataPreprocessor {
         log.debug("Instances after NominalToBinary filter: {}", finalData.numInstances());
         
         saveToArff(finalData, this.outputArffPath);
-        log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numInstances(), finalData.numAttributes());
+        log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numAttributes(), finalData.numInstances());
     }
 
     private Instances loadCsvManually(final String csvPath) throws IOException {

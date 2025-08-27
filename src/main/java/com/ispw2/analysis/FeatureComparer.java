@@ -2,6 +2,7 @@ package com.ispw2.analysis;
 
 import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +34,15 @@ public class FeatureComparer {
         }
 
         try {
-            final String parsableContent = "class DummyWrapper { " + content + " }";
-            Map<String, Number> features = StaticJavaParser.parse(parsableContent)
-                    .findFirst(CallableDeclaration.class)
+            CompilationUnit cu;
+            if (filePath.contains("_refactored")) {
+                cu = StaticJavaParser.parse(content);
+            } else {
+                final String parsableContent = "class DummyWrapper { " + content + " }";
+                cu = StaticJavaParser.parse(parsableContent);
+            }
+
+            Map<String, Number> features = cu.findFirst(CallableDeclaration.class, decl -> "main".equals(decl.getNameAsString()))
                     .map(StaticMetricsCalculator::calculateAll)
                     .orElseGet(Collections::emptyMap);
             
@@ -43,6 +50,7 @@ public class FeatureComparer {
                 log.debug("Extracted features from {}: {}", filePath, features);
             }
             return features;
+            
         } catch (final ParseProblemException e) {
             log.error("Error parsing method from file: {}. The content might not be a valid Java method.", filePath, e);
             return Collections.emptyMap();

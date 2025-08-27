@@ -13,7 +13,6 @@ public class ConfigurationManager {
     private static final Logger log = LoggerFactory.getLogger(ConfigurationManager.class);
     private static final String CONFIG_FILE = "/config.properties";
 
-    // Property keys as constants
     private static final String KEY_RELEASE_CUTOFF = "analysis.release_cutoff_percentage";
     private static final String KEY_ACTIONABLE_FEATURES = "analysis.actionable_features";
     private static final String KEY_FEATURES_TO_SELECT = "preprocessing.features_to_select";

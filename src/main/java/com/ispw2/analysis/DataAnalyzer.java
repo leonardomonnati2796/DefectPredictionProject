@@ -92,9 +92,9 @@ public class DataAnalyzer {
         selector.SelectAttributes(data);
         
         if (log.isDebugEnabled()) {
-            StringBuilder rankedFeaturesLog = new StringBuilder("Ranked Features (InfoGain):\n");
+            StringBuilder rankedFeaturesLog = new StringBuilder("Ranked Features (InfoGain):").append(System.lineSeparator());
             for (double[] rankedAttribute : selector.rankedAttributes()) {
-                rankedFeaturesLog.append(String.format("  - %s: %.4f\n", data.attribute((int) rankedAttribute[0]).name(), rankedAttribute[1]));
+                rankedFeaturesLog.append(String.format("  - %s: %.4f%n", data.attribute((int) rankedAttribute[0]).name(), rankedAttribute[1]));
             }
             log.debug(rankedFeaturesLog.toString());
         }

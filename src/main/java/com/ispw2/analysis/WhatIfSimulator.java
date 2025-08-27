@@ -44,7 +44,6 @@ public class WhatIfSimulator {
         log.debug("Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
         final Instances datasetB = createSyntheticDatasetB(datasetBplus, this.aFeatureName);
 
-        // --- MODIFICA QUI: La tabella riassuntiva è stata reinserita ---
         logSimulationSummaryTable(datasetA, datasetBplus, datasetB, datasetC);
         
         analyzeResults(datasetBplus, datasetB);
@@ -60,18 +59,15 @@ public class WhatIfSimulator {
         return datasetB;
     }
     
-    // --- NUOVO METODO PER STAMPARE LA TABELLA RIASSUNTIVA ---
     private void logSimulationSummaryTable(final Instances dataA, final Instances bPlus, final Instances b, final Instances c) {
         log.info("[Milestone 2, Step 12] Defect Prediction Summary Table:");
 
         if (log.isInfoEnabled()) {
-            // Calcola tutti i difetti predetti necessari per la tabella
             int defectsInA = DataHelper.countDefective(bClassifier, dataA);
             int defectsInBplus = DataHelper.countDefective(bClassifier, bPlus);
             int defectsInB = DataHelper.countDefective(bClassifier, b);
             int defectsInC = DataHelper.countDefective(bClassifier, c);
 
-            // Definisce la formattazione della tabella
             String separator = "------------------------------------------------------------------";
             String headerFormat = "| %-20s | %-15s | %-15s |";
             String rowFormat = "| %-20s | %-15d | %-15d |";
@@ -90,7 +86,6 @@ public class WhatIfSimulator {
     private void analyzeResults(final Instances bPlus, final Instances b) {
         log.info("[Milestone 2, Step 13] Calculating final metrics based on custom formulas...");
 
-        // Calcolo dei componenti per le formule
         final int actualDefectsInA = DataHelper.countActualDefective(this.datasetA);
         final int actualDefectsInBplus = DataHelper.countActualDefective(bPlus);
         final int predictedDefectsInB = DataHelper.countDefective(bClassifier, b);
@@ -105,7 +100,6 @@ public class WhatIfSimulator {
 
         double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
 
-        // Formula 1: DROP
         if (actualDefectsInBplus > 0) {
             double drop = numerator / actualDefectsInBplus;
             if (log.isInfoEnabled()) {
@@ -117,7 +111,6 @@ public class WhatIfSimulator {
             log.warn("Cannot calculate 'drop' metric because there are no actual defects in the B+ dataset (division by zero).");
         }
 
-        // Formula 2: REDUCTION
         if (actualDefectsInA > 0) {
             double reduction = numerator / actualDefectsInA;
             if (log.isInfoEnabled()) {

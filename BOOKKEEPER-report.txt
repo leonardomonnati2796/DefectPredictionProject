@@ -1,3 +1,51 @@
 ---------------------------------------------------------
 --- STARTING PIPELINE FOR: BOOKKEEPER ---
 ---------------------------------------------------------
+Opening existing repository: C:\Users\hp\Desktop\DefectPredictionProjectFinal\github_projects\BOOKKEEPER
+Fetching project releases from JIRA for project BOOKKEEPER...
+Found 11 valid and sorted releases for project BOOKKEEPER.
+Successfully mapped 11 of 11 Jira releases to Git commits.
+[Milestone 1, Step 1] Checking for Dataset...
+Dataset already exists. Skipping generation.
+[...] Preprocessing data for analysis...
+Processed ARFF file already exists. Skipping preprocessing.
+Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+
+[Milestone 2, Step 2-3] Found saved model. Loading from file: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+Starting data analysis to find actionable method...
+[Milestone 2, Step 4 & 5] Finding Top Actionable Feature...
+Identified Top Actionable Feature (AFeature): LOC
+[Milestone 2, Step 6] Identifying Target Method (AFMethod)...
+  -> Searching within the last analyzed release: 4.2.1
+  -> Found 216 buggy methods in this release.
+Identified AFMethod (buggy method with highest LOC):
+  -> MethodName: bookkeeper-benchmark/src/main/java/org/apache/bookkeeper/benchmark/BenchThroughputLatency.java/main(String[])
+  -> LOC Value: 178
+[Milestone 2, Step 7] Saving AFMethod source code...
+  -> Source code of AFMethod saved to: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
+  -> Refactoring file already exists at: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
+Data analysis completed.
+[Milestone 2, Step 10] Starting What-If Simulation using AFeature: LOC
+[Milestone 2, Step 12] Defect Prediction Summary Table:
+------------------------------------------------------------------
+| Dataset              | Total Instances | Predicted Defects |
+------------------------------------------------------------------
+| A (Full Dataset)     | 17255           | 558             |
+| B+ (LOC > 0)         | 15971           | 556             |
+| B (B+ with LOC=0)    | 15971           | 9               |
+| C (LOC <= 0)         | 1284            | 2               |
+------------------------------------------------------------------
+[Milestone 2, Step 13] Calculating final metrics based on custom formulas...
+Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (818 - 9) / 818 = 0,989
+ANSWER 1 (drop): The calculated metric value is 0,989.
+Formula 2 (reduction) = (actual B+ - expected B) / actual A = (818 - 9) / 827 = 0,978
+ANSWER 2 (reduction): The calculated metric value is 0,978.
+[Milestone 2, Step 7-9] Comparing Features of Original vs. Refactored Method...
+-----------------------------------------------------------------
+Feature                   | Before Refactor | After Refactor  | Change
+-----------------------------------------------------------------
+LOC                       | 144             | 12              | MODIFIED
+CyclomaticComplexity      | 15              | 3               | MODIFIED
+ParameterCount            | 1               | 1               | 
+-----------------------------------------------------------------
+--- FINISHED PIPELINE FOR: BOOKKEEPER ---

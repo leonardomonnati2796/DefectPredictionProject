@@ -58,7 +58,6 @@ public final class TrackedMethod {
 
     @Override
     public String toString() {
-        // Migliorato per includere anche le feature, utile per il debug
         return "TrackedMethod[" +
                 "id=" + id +
                 ", signature='" + signature + '\'' +

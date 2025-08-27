@@ -19,7 +19,6 @@ public class JiraTicket {
     private int introductionVersionIndex = -1;
     private int openingVersionIndex = -1;
     private int fixedVersionIndex = -1;
-    // La riga 'public Object setFixedVersion;' è stata rimossa perché errata.
 
     public JiraTicket(final String key, final LocalDateTime creationDate, final List<String> affectedVersions) {
         this.key = key;
@@ -41,7 +40,7 @@ public class JiraTicket {
     public int getFixedVersionIndex() { return fixedVersionIndex; }
 
     // Setters
-    public void setResolutionDate(final LocalDateTime resolutionDate) {
+    public void setResolutionDate(final LocalDateTime resolutionDate) { 
         log.debug("Setting ResolutionDate for ticket {}: {}", this.key, resolutionDate);
         this.resolutionDate = resolutionDate; 
     }
@@ -74,7 +73,6 @@ public class JiraTicket {
         return Objects.hash(key);
     }
 
-    // Aggiunto per una migliore rappresentazione nei log
     @Override
     public String toString() {
         return "JiraTicket{" +

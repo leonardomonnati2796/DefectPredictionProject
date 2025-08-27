@@ -50,6 +50,7 @@ public class DatasetGenerator {
     }
 
     public void generateCsv(final String basePath) {
+        log.info("Starting dataset generation for project {}...", this.projectName);
         final String csvFilePath = Paths.get(basePath, this.projectName + ".csv").toString();
 
         try {
@@ -57,15 +58,16 @@ public class DatasetGenerator {
             git.findAndSetFixCommits(tickets);
             setVersionIndices(tickets, releases);
             final double pMedian = calculateProportionCoefficient(tickets);
+            log.debug("Calculated proportion median for bug introduction: {}", pMedian);
 
             final Map<String, List<String>> bugToMethodsMap = git.getBugToMethodsMap(tickets);
             final MethodTracker tracker = new MethodTracker(git);
 
             final List<String[]> csvData = buildCsvData(releases, tickets, releaseCommits, tracker, bugToMethodsMap, pMedian);
-            // --- AGGIUNTO QUESTO LOG DEBUG ---
-            log.info("DEBUG: Il dataset finale contiene {} righe (inclusa l'intestazione) pronte per essere scritte.", csvData.size());
-            // --- FINE AGGIUNTA ---
+            log.debug("Generated {} total rows (including header) for the dataset.", csvData.size());
+
             writeToCsv(csvFilePath, csvData);
+            log.info("Dataset successfully written to {}", csvFilePath);
 
         } catch (IOException e) {
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
@@ -79,16 +81,18 @@ public class DatasetGenerator {
         final double cutoffPercentage = config.getReleaseCutoffPercentage();
         final int releaseCutoff = (int) Math.ceil(allReleases.size() * cutoffPercentage);
         final List<ProjectRelease> releasesToAnalyze = allReleases.subList(0, releaseCutoff);
+        log.debug("Analyzing {} of {} releases (cutoff at {}%).", releasesToAnalyze.size(), allReleases.size(), cutoffPercentage * 100);
 
         for (final ProjectRelease release : releasesToAnalyze) {
-            log.info("Analyzing release: {}", release.name());
+            log.debug("Processing release: {}", release.name());
             final RevCommit releaseCommit = releaseCommits.get(release.name());
-            if (releaseCommit == null) continue;
+            if (releaseCommit == null) {
+                log.warn("Skipping release {} as no commit was found for it.", release.name());
+                continue;
+            }
 
             final List<TrackedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
-             // --- AGGIUNGI QUESTO LOG ---
-            log.info("DEBUG: Trovati {} metodi per la release {}", methods.size(), release.name());
-            // --- FINE AGGIUNTA ---
+            log.debug("Found {} methods for release {}", methods.size(), release.name());
             for (final TrackedMethod method : methods) {
                 final String[] row = createCsvRow(method, release, tickets, bugToMethodsMap, pMedian);
                 csvData.add(row);

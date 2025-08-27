@@ -17,7 +17,6 @@ Processed ARFF file already exists. Skipping preprocessing.
 Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_best.model
 
 [Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...
-Loaded 162679 instances from C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_processed.arff
 --- Evaluating base classifiers on the original (imbalanced) dataset ---
 ----------------------------------------------------------------------
 Classifier           | AUC        | Precision  | Recall     | Kappa     

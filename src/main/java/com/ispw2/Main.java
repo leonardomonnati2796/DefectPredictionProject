@@ -13,8 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.slf4j.bridge.SLF4JBridgeHandler;
-
 import weka.classifiers.Classifier;
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ParserConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,9 +51,9 @@ public class Main {
     ) {}
 
     public static void main(final String[] args) {
-
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
+        StaticJavaParser.getParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
         
         log.info("Starting Defect Prediction Analysis...");
         
@@ -178,7 +179,6 @@ public class Main {
             log.info("Dataset not found or is empty. Generating...");
             final DatasetGenerator generator = new DatasetGenerator(context.config(), context.projectName(), context.git(), context.jira(), context.releases(), context.releaseCommits());
             generator.generateCsv(context.datasetsBasePath());
-            log.info("Dataset generation complete.");
         }
     }
 

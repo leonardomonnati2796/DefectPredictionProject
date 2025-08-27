@@ -40,10 +40,9 @@ public class ClassifierRunner {
     }
     
     public Classifier getBestClassifier() throws IOException {
-        // --- AGGIUNGI QUESTO LOG DI DEBUG ---
         log.info("Checking for model file at path: {}", modelPath);
-        // --- FINE AGGIUNTA ---
         final File modelFile = new File(modelPath);
+        
         if (modelFile.exists() && modelFile.length() > 0) {
             log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file: {}", modelPath);
             try {
@@ -90,7 +89,7 @@ public class ClassifierRunner {
         this.data.setClassIndex(this.data.numAttributes() - 1);
         
         if (log.isInfoEnabled()) {
-            log.info("Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
+            // Questo log è stato intenzionalmente spostato in DataHelper per evitare ridondanza
         }
     }
 
