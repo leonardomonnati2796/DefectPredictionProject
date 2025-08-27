@@ -15,6 +15,7 @@ import weka.core.SerializationHelper;
 import weka.core.converters.ArffLoader;
 import java.io.File;
 import java.io.IOException;
+import java.security.SecureRandom; // Import per il generatore sicuro
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -89,7 +90,7 @@ public class ClassifierRunner {
         this.data.setClassIndex(this.data.numAttributes() - 1);
         
         if (log.isInfoEnabled()) {
-            // Questo log è stato intenzionalmente spostato in DataHelper per evitare ridondanza
+            log.info("Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
         }
     }
 
@@ -160,7 +161,7 @@ public class ClassifierRunner {
             if (log.isDebugEnabled()){
                 log.debug("Running cross-validation repeat {}/{} with random seed {}.", i + 1, NUM_REPEATS, i);
             }
-            eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new Random(i));
+            eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new SecureRandom());
         }
         return eval;
     }
