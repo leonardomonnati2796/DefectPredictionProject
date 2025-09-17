@@ -1,101 +1,86 @@
 package com.ispw2.analysis;
 
-import com.github.javaparser.JavaParser;
-import com.github.javaparser.ParseProblemException;
-import com.github.javaparser.ParseResult;
-import com.github.javaparser.ParserConfiguration;
-import com.github.javaparser.StaticJavaParser;
-import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.CallableDeclaration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
+/**
+ * Compares features between original and refactored methods.
+ * Analyzes the impact of refactoring on code metrics.
+ */
 public class MethodFeatureComparator {
     private static final Logger log = LoggerFactory.getLogger(MethodFeatureComparator.class);
-    
-    private static final String TABLE_SEPARATOR = "-----------------------------------------------------------------";
 
-    public void compareMethods(final String originalFilePath, final String refactoredFilePath) throws IOException {
-        log.info("[Milestone 2, Step 7-9] Comparing Features of Original vs. Refactored Method...");
-        
-        final Map<String, Number> featuresBefore = extractStaticFeatures(originalFilePath);
-        final Map<String, Number> featuresAfter = extractStaticFeatures(refactoredFilePath);
-
-        printComparison(featuresBefore, featuresAfter);
-    }
-
-    private Map<String, Number> extractStaticFeatures(final String filePath) throws IOException {
-        log.debug("Extracting static features from file: {}", filePath);
-        final String content = Files.readString(Paths.get(filePath));
-        if (content.isBlank()) {
-            log.warn("File is blank, no features to extract: {}", filePath);
-            return Collections.emptyMap();
-        }
+    /**
+     * Compares the features of original and refactored methods.
+     * 
+     * @param originalMethodPath Path to the original method file
+     * @param refactoredMethodPath Path to the refactored method file
+     */
+    public void compareMethods(final String originalMethodPath, final String refactoredMethodPath) {
+        log.info("Comparing methods:");
+        log.info("  Original: {}", originalMethodPath);
+        log.info("  Refactored: {}", refactoredMethodPath);
 
         try {
-            CompilationUnit cu;
-            // Se il file è quello refattorizzato, usa un parser configurato per Java 17.
-            // Altrimenti, usa il parser di default con il wrapper per il frammento di codice.
-            if (filePath.contains("_refactored")) {
-                ParserConfiguration parserConfiguration = new ParserConfiguration();
-                parserConfiguration.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
-                JavaParser javaParser = new JavaParser(parserConfiguration);
+            final Map<String, Double> originalFeatures = parseMethodFeatures(originalMethodPath);
+            final Map<String, Double> refactoredFeatures = parseMethodFeatures(refactoredMethodPath);
+
+            log.info("Feature comparison results:");
+            for (final String feature : originalFeatures.keySet()) {
+                final double originalValue = originalFeatures.getOrDefault(feature, 0.0);
+                final double refactoredValue = refactoredFeatures.getOrDefault(feature, 0.0);
+                final double improvement = originalValue - refactoredValue;
                 
-                ParseResult<CompilationUnit> result = javaParser.parse(content);
-                if (!result.isSuccessful() || result.getResult().isEmpty()) {
-                    // Lancia l'eccezione del primo problema trovato per un logging chiaro.
-                    throw new ParseProblemException(result.getProblems());
-                }
-                cu = result.getResult().get();
-            } else {
-                final String parsableContent = "class DummyWrapper { " + content + " }";
-                cu = StaticJavaParser.parse(parsableContent);
+                log.info("  {}: {:.2f} -> {:.2f} (improvement: {:.2f})", 
+                        feature, originalValue, refactoredValue, improvement);
             }
 
-            // Cerca il metodo 'main' per calcolare le metriche.
-            // Se non lo trova, cerca il primo metodo disponibile come fallback.
-            Map<String, Number> features = cu.findFirst(CallableDeclaration.class, decl -> "main".equals(decl.getNameAsString()))
-                    .or(() -> cu.findFirst(CallableDeclaration.class))
-                    .map(StaticMetricsCalculator::calculateAll)
-                    .orElseGet(Collections::emptyMap);
-            
-            if (log.isDebugEnabled()) {
-                log.debug("Extracted features from {}: {}", filePath, features);
-            }
-            return features;
-            
-        } catch (final Exception e) {
-            log.error("Error parsing source code from file: {}. The content might not be a valid Java method.", filePath, e);
-            return Collections.emptyMap();
+        } catch (final IOException e) {
+            log.error("Error comparing methods", e);
         }
     }
 
-    private void printComparison(final Map<String, Number> before, final Map<String, Number> after) {
-        if (log.isInfoEnabled()) {
-            log.info(TABLE_SEPARATOR);
-            log.info(String.format("%-25s | %-15s | %-15s | %s", "Feature", "Before Refactor", "After Refactor", "Change"));
-            log.info(TABLE_SEPARATOR);
-
-            final List<String> featureNames = Arrays.asList(
-                Metrics.LOC, 
-                Metrics.CYCLOMATIC_COMPLEXITY, 
-                Metrics.PARAMETER_COUNT
-            );
-
-            for(final String feature : featureNames) {
-                final Number beforeNum = before.get(feature);
-                final Number afterNum = after.get(feature);
-                final String beforeValue = (beforeNum != null) ? beforeNum.toString() : "N/A";
-                final String afterValue = (afterNum != null) ? afterNum.toString() : "N/A";
-                final String marker = !beforeValue.equals(afterValue) ? "MODIFIED" : "";
-                
-                log.info(String.format("%-25s | %-15s | %-15s | %s", feature, beforeValue, afterValue, marker));
-            }
-            log.info(TABLE_SEPARATOR);
+    /**
+     * Parses method features from a file.
+     * 
+     * @param filePath Path to the method file
+     * @return Map of feature names to values
+     * @throws IOException If file reading fails
+     */
+    private Map<String, Double> parseMethodFeatures(final String filePath) throws IOException {
+        final Map<String, Double> features = new HashMap<>();
+        final Path path = Paths.get(filePath);
+        
+        if (!Files.exists(path)) {
+            log.warn("Method file not found: {}", filePath);
+            return features;
         }
+
+        final String content = Files.readString(path);
+        final String[] lines = content.split("\n");
+        
+        for (final String line : lines) {
+            if (line.contains(":")) {
+                final String[] parts = line.split(":");
+                if (parts.length == 2) {
+                    try {
+                        final String featureName = parts[0].trim();
+                        final double value = Double.parseDouble(parts[1].trim());
+                        features.put(featureName, value);
+                    } catch (final NumberFormatException e) {
+                        log.debug("Skipping non-numeric line: {}", line);
+                    }
+                }
+            }
+        }
+
+        return features;
     }
 }

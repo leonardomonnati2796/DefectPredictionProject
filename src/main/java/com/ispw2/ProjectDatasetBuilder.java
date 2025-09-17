@@ -216,7 +216,7 @@ public class ProjectDatasetBuilder {
                 .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
-                .toList();
+                .collect(Collectors.toList());
         if (pValues.isEmpty()) return PROPORTION_DEFAULT_COEFFICIENT;
         
         final int size = pValues.size();

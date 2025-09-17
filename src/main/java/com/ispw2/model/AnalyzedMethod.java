@@ -47,7 +47,7 @@ public final class AnalyzedMethod {
     public boolean equals(final Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != this.getClass()) return false;
-        final TrackedMethod that = (TrackedMethod) obj;
+        final AnalyzedMethod that = (AnalyzedMethod) obj;
         return Objects.equals(this.id, that.id);
     }
 
@@ -58,7 +58,7 @@ public final class AnalyzedMethod {
 
     @Override
     public String toString() {
-        return "TrackedMethod[" +
+        return "AnalyzedMethod[" +
                 "id=" + id +
                 ", signature='" + signature + '\'' +
                 ", filepath='" + filepath + '\'' +

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class BugTrackingConnector {
@@ -65,7 +66,7 @@ public class BugTrackingConnector {
         
         List<SoftwareRelease> indexedReleases = IntStream.range(0, releases.size())
                 .mapToObj(i -> new SoftwareRelease(releases.get(i).name(), releases.get(i).releaseDate(), i + 1))
-                .toList();
+                .collect(Collectors.toList());
         
         log.info("Found {} valid and sorted releases for project {}.", indexedReleases.size(), projectKey);
         return indexedReleases;

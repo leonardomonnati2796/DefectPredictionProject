@@ -116,7 +116,9 @@ public class DatasetPreprocessor {
         final ArrayList<Attribute> attributes = new ArrayList<>();
         for (final String header : headers) {
             switch(header) {
-                case PROJECT_COLUMN, METHOD_NAME_COLUMN, RELEASE_COLUMN:
+                case PROJECT_COLUMN:
+                case METHOD_NAME_COLUMN:
+                case RELEASE_COLUMN:
                     attributes.add(new Attribute(header, (List<String>) null));
                     break;
                 case IS_BUGGY_COLUMN:

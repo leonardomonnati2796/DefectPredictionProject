@@ -171,24 +171,24 @@ public class MethodAnalysisTracker {
 
         Map<String, Number> toMap() {
             final Map<String, Number> features = new HashMap<>();
-            features.put(Metrics.NR, revisionCount);
-            features.put(Metrics.NAUTH, authors.size());
-            features.put(Metrics.STMT_ADDED, totalLinesAdded);
-            features.put(Metrics.STMT_DELETED, totalLinesDeleted);
-            features.put(Metrics.MAX_CHURN, maxChurn);
-            features.put(Metrics.AVG_CHURN, (revisionCount > 0) ? (double)(totalLinesAdded + totalLinesDeleted) / revisionCount : 0);
+            features.put(CodeQualityMetrics.NR, revisionCount);
+            features.put(CodeQualityMetrics.NAUTH, authors.size());
+            features.put(CodeQualityMetrics.STMT_ADDED, totalLinesAdded);
+            features.put(CodeQualityMetrics.STMT_DELETED, totalLinesDeleted);
+            features.put(CodeQualityMetrics.MAX_CHURN, maxChurn);
+            features.put(CodeQualityMetrics.AVG_CHURN, (revisionCount > 0) ? (double)(totalLinesAdded + totalLinesDeleted) / revisionCount : 0);
             return features;
         }
     }
 
     private Map<String, Number> getPlaceholderChangeFeatures() {
         final Map<String, Number> features = new HashMap<>();
-        features.put(Metrics.NR, 0);
-        features.put(Metrics.NAUTH, 0);
-        features.put(Metrics.STMT_ADDED, 0);
-        features.put(Metrics.STMT_DELETED, 0);
-        features.put(Metrics.MAX_CHURN, 0);
-        features.put(Metrics.AVG_CHURN, 0);
+        features.put(CodeQualityMetrics.NR, 0);
+        features.put(CodeQualityMetrics.NAUTH, 0);
+        features.put(CodeQualityMetrics.STMT_ADDED, 0);
+        features.put(CodeQualityMetrics.STMT_DELETED, 0);
+        features.put(CodeQualityMetrics.MAX_CHURN, 0);
+        features.put(CodeQualityMetrics.AVG_CHURN, 0);
         return features;
     }
 }

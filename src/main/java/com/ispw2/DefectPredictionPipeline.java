@@ -35,18 +35,45 @@ public class DefectPredictionPipeline {
     private static final String DATASETS_DIR_NAME = "datasets";
     private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
 
-    private record ProjectContext(
-        ConfigurationManager config,
-        String projectName,
-        String datasetsBasePath,
-        String originalCsvPath,
-        String processedArffPath,
-        String modelPath,
-        VersionControlConnector git,
-        BugTrackingConnector jira,
-        List<SoftwareRelease> releases,
-        Map<String, RevCommit> releaseCommits
-    ) {}
+    private static final class ProjectContext {
+        private final ConfigurationManager config;
+        private final String projectName;
+        private final String datasetsBasePath;
+        private final String originalCsvPath;
+        private final String processedArffPath;
+        private final String modelPath;
+        private final VersionControlConnector git;
+        private final BugTrackingConnector jira;
+        private final List<SoftwareRelease> releases;
+        private final Map<String, RevCommit> releaseCommits;
+
+        public ProjectContext(ConfigurationManager config, String projectName, String datasetsBasePath,
+                            String originalCsvPath, String processedArffPath, String modelPath,
+                            VersionControlConnector git, BugTrackingConnector jira,
+                            List<SoftwareRelease> releases, Map<String, RevCommit> releaseCommits) {
+            this.config = config;
+            this.projectName = projectName;
+            this.datasetsBasePath = datasetsBasePath;
+            this.originalCsvPath = originalCsvPath;
+            this.processedArffPath = processedArffPath;
+            this.modelPath = modelPath;
+            this.git = git;
+            this.jira = jira;
+            this.releases = releases;
+            this.releaseCommits = releaseCommits;
+        }
+
+        public ConfigurationManager config() { return config; }
+        public String projectName() { return projectName; }
+        public String datasetsBasePath() { return datasetsBasePath; }
+        public String originalCsvPath() { return originalCsvPath; }
+        public String processedArffPath() { return processedArffPath; }
+        public String modelPath() { return modelPath; }
+        public VersionControlConnector git() { return git; }
+        public BugTrackingConnector jira() { return jira; }
+        public List<SoftwareRelease> releases() { return releases; }
+        public Map<String, RevCommit> releaseCommits() { return releaseCommits; }
+    }
 
     /**
      * Main entry point for the defect prediction pipeline.
@@ -161,6 +188,13 @@ public class DefectPredictionPipeline {
         log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
+    /**
+     * Executes the analysis and simulation phase of the defect prediction pipeline.
+     * This includes training the best classifier, finding actionable features,
+     * running what-if simulations, and comparing method features.
+     * 
+     * @param context Project context containing all necessary data and configurations
+     */
     private static void runAnalysisAndSimulation(ProjectContext context) {
         try {
             final MachineLearningModelTrainer runner = new MachineLearningModelTrainer(context.config(), context.processedArffPath(), context.modelPath());
@@ -187,6 +221,12 @@ public class DefectPredictionPipeline {
         }
     }
 
+    /**
+     * Generates the dataset for the project if it doesn't already exist.
+     * Checks for existing CSV file and only generates if missing or empty.
+     * 
+     * @param context Project context containing dataset paths and configurations
+     */
     private static void generateDatasetIfNotExists(ProjectContext context) {
         log.info("[Milestone 1, Step 1] Checking for Dataset...");
         final File datasetFile = new File(context.originalCsvPath());
@@ -201,6 +241,13 @@ public class DefectPredictionPipeline {
         }
     }
 
+    /**
+     * Preprocesses the raw CSV data into ARFF format for machine learning analysis.
+     * Handles data cleaning, feature scaling, and format conversion.
+     * 
+     * @param context Project context containing dataset paths and configurations
+     * @throws IOException If preprocessing fails
+     */
     private static void preprocessData(ProjectContext context) throws IOException {
         log.info("[...] Preprocessing data for analysis...");
         final File arffFile = new File(context.processedArffPath());

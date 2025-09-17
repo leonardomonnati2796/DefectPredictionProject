@@ -22,7 +22,9 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class CodeQualityAnalyzer {
 
@@ -35,16 +37,50 @@ public class CodeQualityAnalyzer {
     private static final String CSV_COL_RELEASE = "Release";
     private static final String CSV_COL_IS_BUGGY = "IsBuggy";
 
-    private record MethodIdentifier(String filePath, String signature) {
+    private static final class MethodIdentifier {
+        private final String filePath;
+        private final String signature;
+
+        public MethodIdentifier(String filePath, String signature) {
+            this.filePath = filePath;
+            this.signature = signature;
+        }
+
+        public String filePath() {
+            return filePath;
+        }
+
+        public String signature() {
+            return signature;
+        }
+
         public static Optional<MethodIdentifier> fromString(final String fullIdentifier) {
             final int separator = fullIdentifier.lastIndexOf('/');
             if (separator == -1) {
                 return Optional.empty();
             }
             return Optional.of(new MethodIdentifier(
-                fullIdentifier.substring(0, separator),
-                fullIdentifier.substring(separator + 1)
+                    fullIdentifier.substring(0, separator),
+                    fullIdentifier.substring(separator + 1)
             ));
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            MethodIdentifier that = (MethodIdentifier) obj;
+            return Objects.equals(filePath, that.filePath) && Objects.equals(signature, that.signature);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filePath, signature);
+        }
+
+        @Override
+        public String toString() {
+            return filePath + "/" + signature;
         }
     }
 
@@ -146,7 +182,7 @@ public class CodeQualityAnalyzer {
 
         final List<CSVRecord> buggyMethodsInLastRelease = records.stream()
                 .filter(r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)))
-                .toList();
+                .collect(Collectors.toList());
 
         log.info("  -> Found {} buggy methods in this release.", buggyMethodsInLastRelease.size());
 
