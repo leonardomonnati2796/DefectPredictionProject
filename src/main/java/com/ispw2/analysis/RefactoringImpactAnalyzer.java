@@ -69,20 +69,23 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
         } catch (final ClassifierTrainingException e) {
-            log.error("Classifier training failed during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
+            final String errorMessage = String.format("Classifier training failed during simulation for feature '%s': %s", 
+                    this.aFeatureName, e.getMessage());
+            log.error(errorMessage, e);
             throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to classifier training error", e);
+                    this.aFeatureName + "' due to classifier training error: " + e.getMessage(), e);
         } catch (final DatasetCreationException e) {
-            log.error("Dataset creation failed during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
+            final String errorMessage = String.format("Dataset creation failed during simulation for feature '%s': %s", 
+                    this.aFeatureName, e.getMessage());
+            log.error(errorMessage, e);
             throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to dataset creation error", e);
+                    this.aFeatureName + "' due to dataset creation error: " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Unexpected error during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
+            final String errorMessage = String.format("Unexpected error during simulation for feature '%s': %s", 
+                    this.aFeatureName, e.getMessage());
+            log.error(errorMessage, e);
             throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to unexpected error", e);
+                    this.aFeatureName + "' due to unexpected error: " + e.getMessage(), e);
         }
     }
     
@@ -99,12 +102,14 @@ public class RefactoringImpactAnalyzer {
             
             return bClassifierA;
         } catch (final ReflectiveOperationException e) {
-            log.error("Failed to create new classifier instance of type {}: {}", 
-                    bClassifier.getClass().getSimpleName(), e.getMessage(), e);
-            throw new ClassifierTrainingException("Cannot instantiate classifier for simulation", e);
+            final String errorMessage = String.format("Failed to create new classifier instance of type %s: %s", 
+                    bClassifier.getClass().getSimpleName(), e.getMessage());
+            log.error(errorMessage, e);
+            throw new ClassifierTrainingException("Cannot instantiate classifier for simulation: " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Failed to train classifier on dataset A: {}", e.getMessage(), e);
-            throw new ClassifierTrainingException("Cannot train classifier for simulation", e);
+            final String errorMessage = String.format("Failed to train classifier on dataset A: %s", e.getMessage());
+            log.error(errorMessage, e);
+            throw new ClassifierTrainingException("Cannot train classifier for simulation: " + e.getMessage(), e);
         }
     }
     
@@ -124,11 +129,18 @@ public class RefactoringImpactAnalyzer {
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
-            // Re-throw our custom exception as-is
-            throw e;
+            // Re-throw our custom exception as-is with additional context
+            final String errorMessage = String.format("Dataset creation failed for feature '%s': %s", 
+                    featureNameToModify, e.getMessage());
+            log.error(errorMessage, e);
+            throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
+                    featureNameToModify + "': " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Failed to create synthetic dataset B for feature '{}': {}", featureNameToModify, e.getMessage(), e);
-            throw new DatasetCreationException("Cannot create synthetic dataset B", e);
+            final String errorMessage = String.format("Failed to create synthetic dataset B for feature '%s': %s", 
+                    featureNameToModify, e.getMessage());
+            log.error(errorMessage, e);
+            throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
+                    featureNameToModify + "': " + e.getMessage(), e);
         }
     }
     
