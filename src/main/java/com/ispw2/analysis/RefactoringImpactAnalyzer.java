@@ -68,15 +68,25 @@ public class RefactoringImpactAnalyzer {
         analyzePreliminaryQuestions(datasetBplus, datasetB, bClassifierA);
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
-        } catch (Exception e) {
-            log.error("Error during BClassifierA training or simulation for feature '{}': {}", 
+        } catch (final ClassifierTrainingException e) {
+            log.error("Classifier training failed during simulation for feature '{}': {}", 
                     this.aFeatureName, e.getMessage(), e);
             throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to: " + e.getMessage(), e);
+                    this.aFeatureName + "' due to classifier training error", e);
+        } catch (final DatasetCreationException e) {
+            log.error("Dataset creation failed during simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            throw new IOException("Failed to complete what-if simulation for feature '" + 
+                    this.aFeatureName + "' due to dataset creation error", e);
+        } catch (final Exception e) {
+            log.error("Unexpected error during simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            throw new IOException("Failed to complete what-if simulation for feature '" + 
+                    this.aFeatureName + "' due to unexpected error", e);
         }
     }
     
-    private Classifier createAndTrainClassifierOnA() throws IOException {
+    private Classifier createAndTrainClassifierOnA() throws ClassifierTrainingException {
         log.debug("Creating new instance of classifier type: {}", bClassifier.getClass().getSimpleName());
         
         try {
@@ -91,21 +101,21 @@ public class RefactoringImpactAnalyzer {
         } catch (final ReflectiveOperationException e) {
             log.error("Failed to create new classifier instance of type {}: {}", 
                     bClassifier.getClass().getSimpleName(), e.getMessage(), e);
-            throw new IOException("Cannot instantiate classifier for simulation", e);
+            throw new ClassifierTrainingException("Cannot instantiate classifier for simulation", e);
         } catch (final Exception e) {
             log.error("Failed to train classifier on dataset A: {}", e.getMessage(), e);
-            throw new IOException("Cannot train classifier for simulation", e);
+            throw new ClassifierTrainingException("Cannot train classifier for simulation", e);
         }
     }
     
-    private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) {
+    private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) throws DatasetCreationException {
         try {
             final Instances datasetB = new Instances(datasetBplus);
             final Attribute aFeature = datasetB.attribute(featureNameToModify);
             
             if (aFeature == null) {
                 log.error("Feature '{}' not found in dataset B+. Cannot create synthetic dataset B.", featureNameToModify);
-                throw new IllegalArgumentException("Feature '" + featureNameToModify + "' not found in dataset");
+                throw new DatasetCreationException("Feature '" + featureNameToModify + "' not found in dataset");
             }
             
             final double nonSmellyValue = 0.0; 
@@ -113,9 +123,12 @@ public class RefactoringImpactAnalyzer {
                 datasetB.instance(i).setValue(aFeature, nonSmellyValue);
             }
             return datasetB;
+        } catch (final DatasetCreationException e) {
+            // Re-throw our custom exception as-is
+            throw e;
         } catch (final Exception e) {
             log.error("Failed to create synthetic dataset B for feature '{}': {}", featureNameToModify, e.getMessage(), e);
-            throw new RuntimeException("Cannot create synthetic dataset B", e);
+            throw new DatasetCreationException("Cannot create synthetic dataset B", e);
         }
     }
     
