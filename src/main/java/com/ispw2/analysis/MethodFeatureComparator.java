@@ -38,8 +38,9 @@ public class MethodFeatureComparator {
                 final double refactoredValue = refactoredFeatures.getOrDefault(feature, 0.0);
                 final double improvement = originalValue - refactoredValue;
                 
-                log.info("  {}: {:.2f} -> {:.2f} (improvement: {:.2f})", 
+                final String message = String.format("  %s: %.2f -> %.2f (improvement: %.2f)", 
                         feature, originalValue, refactoredValue, improvement);
+                log.info(message);
             }
 
         } catch (final IOException e) {

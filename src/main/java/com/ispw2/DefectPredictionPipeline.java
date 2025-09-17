@@ -47,20 +47,17 @@ public class DefectPredictionPipeline {
         private final List<SoftwareRelease> releases;
         private final Map<String, RevCommit> releaseCommits;
 
-        public ProjectContext(ConfigurationManager config, String projectName, String datasetsBasePath,
-                            String originalCsvPath, String processedArffPath, String modelPath,
-                            VersionControlConnector git, BugTrackingConnector jira,
-                            List<SoftwareRelease> releases, Map<String, RevCommit> releaseCommits) {
-            this.config = config;
-            this.projectName = projectName;
-            this.datasetsBasePath = datasetsBasePath;
-            this.originalCsvPath = originalCsvPath;
-            this.processedArffPath = processedArffPath;
-            this.modelPath = modelPath;
-            this.git = git;
-            this.jira = jira;
-            this.releases = releases;
-            this.releaseCommits = releaseCommits;
+        private ProjectContext(Builder builder) {
+            this.config = builder.config;
+            this.projectName = builder.projectName;
+            this.datasetsBasePath = builder.datasetsBasePath;
+            this.originalCsvPath = builder.originalCsvPath;
+            this.processedArffPath = builder.processedArffPath;
+            this.modelPath = builder.modelPath;
+            this.git = builder.git;
+            this.jira = builder.jira;
+            this.releases = builder.releases;
+            this.releaseCommits = builder.releaseCommits;
         }
 
         public ConfigurationManager config() { return config; }
@@ -73,6 +70,73 @@ public class DefectPredictionPipeline {
         public BugTrackingConnector jira() { return jira; }
         public List<SoftwareRelease> releases() { return releases; }
         public Map<String, RevCommit> releaseCommits() { return releaseCommits; }
+
+        public static class Builder {
+            private ConfigurationManager config;
+            private String projectName;
+            private String datasetsBasePath;
+            private String originalCsvPath;
+            private String processedArffPath;
+            private String modelPath;
+            private VersionControlConnector git;
+            private BugTrackingConnector jira;
+            private List<SoftwareRelease> releases;
+            private Map<String, RevCommit> releaseCommits;
+
+            public Builder config(ConfigurationManager config) {
+                this.config = config;
+                return this;
+            }
+
+            public Builder projectName(String projectName) {
+                this.projectName = projectName;
+                return this;
+            }
+
+            public Builder datasetsBasePath(String datasetsBasePath) {
+                this.datasetsBasePath = datasetsBasePath;
+                return this;
+            }
+
+            public Builder originalCsvPath(String originalCsvPath) {
+                this.originalCsvPath = originalCsvPath;
+                return this;
+            }
+
+            public Builder processedArffPath(String processedArffPath) {
+                this.processedArffPath = processedArffPath;
+                return this;
+            }
+
+            public Builder modelPath(String modelPath) {
+                this.modelPath = modelPath;
+                return this;
+            }
+
+            public Builder git(VersionControlConnector git) {
+                this.git = git;
+                return this;
+            }
+
+            public Builder jira(BugTrackingConnector jira) {
+                this.jira = jira;
+                return this;
+            }
+
+            public Builder releases(List<SoftwareRelease> releases) {
+                this.releases = releases;
+                return this;
+            }
+
+            public Builder releaseCommits(Map<String, RevCommit> releaseCommits) {
+                this.releaseCommits = releaseCommits;
+                return this;
+            }
+
+            public ProjectContext build() {
+                return new ProjectContext(this);
+            }
+        }
     }
 
     /**
@@ -175,7 +239,18 @@ public class DefectPredictionPipeline {
         final List<SoftwareRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
         
-        ProjectContext context = new ProjectContext(config, project.name(), datasetsBasePath, originalCsvPath, processedArffPath, modelPath, git, jira, releases, releaseCommits);
+        ProjectContext context = new ProjectContext.Builder()
+                .config(config)
+                .projectName(project.name())
+                .datasetsBasePath(datasetsBasePath)
+                .originalCsvPath(originalCsvPath)
+                .processedArffPath(processedArffPath)
+                .modelPath(modelPath)
+                .git(git)
+                .jira(jira)
+                .releases(releases)
+                .releaseCommits(releaseCommits)
+                .build();
         
         if (log.isDebugEnabled()) {
             log.debug("Created project context for pipeline: {}", context);

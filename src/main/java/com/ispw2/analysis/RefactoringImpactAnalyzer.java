@@ -69,8 +69,10 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
         } catch (Exception e) {
-            log.error("Error during BClassifierA training or simulation: {}", e.getMessage(), e);
-            throw new IOException("Failed to complete simulation", e);
+            log.error("Error during BClassifierA training or simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            throw new IOException("Failed to complete what-if simulation for feature '" + 
+                    this.aFeatureName + "' due to: " + e.getMessage(), e);
         }
     }
     
