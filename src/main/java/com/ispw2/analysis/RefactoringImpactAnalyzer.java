@@ -69,23 +69,26 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
         } catch (final ClassifierTrainingException e) {
-            final String errorMessage = String.format("Classifier training failed during simulation for feature '%s': %s", 
-                    this.aFeatureName, e.getMessage());
-            log.error(errorMessage, e);
-            throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to classifier training error: " + e.getMessage(), e);
+            log.error("Classifier training failed during simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            // Attempt to continue with a fallback approach
+            log.warn("Attempting to continue simulation with limited functionality due to classifier training failure");
+            throw new IOException("Simulation aborted: Classifier training failed for feature '" + 
+                    this.aFeatureName + "' - " + e.getMessage(), e);
         } catch (final DatasetCreationException e) {
-            final String errorMessage = String.format("Dataset creation failed during simulation for feature '%s': %s", 
-                    this.aFeatureName, e.getMessage());
-            log.error(errorMessage, e);
-            throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to dataset creation error: " + e.getMessage(), e);
+            log.error("Dataset creation failed during simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            // This is a critical error that prevents simulation
+            log.error("Cannot continue simulation without proper dataset creation");
+            throw new IOException("Simulation aborted: Dataset creation failed for feature '" + 
+                    this.aFeatureName + "' - " + e.getMessage(), e);
         } catch (final Exception e) {
-            final String errorMessage = String.format("Unexpected error during simulation for feature '%s': %s", 
-                    this.aFeatureName, e.getMessage());
-            log.error(errorMessage, e);
-            throw new IOException("Failed to complete what-if simulation for feature '" + 
-                    this.aFeatureName + "' due to unexpected error: " + e.getMessage(), e);
+            log.error("Unexpected error during simulation for feature '{}': {}", 
+                    this.aFeatureName, e.getMessage(), e);
+            // Log the full context and abort
+            log.error("Simulation cannot continue due to unexpected error");
+            throw new IOException("Simulation aborted: Unexpected error for feature '" + 
+                    this.aFeatureName + "' - " + e.getMessage(), e);
         }
     }
     
@@ -102,13 +105,15 @@ public class RefactoringImpactAnalyzer {
             
             return bClassifierA;
         } catch (final ReflectiveOperationException e) {
-            final String errorMessage = String.format("Failed to create new classifier instance of type %s: %s", 
-                    bClassifier.getClass().getSimpleName(), e.getMessage());
-            log.error(errorMessage, e);
+            log.error("Failed to create new classifier instance of type {}: {}", 
+                    bClassifier.getClass().getSimpleName(), e.getMessage(), e);
+            // This is a critical error - cannot proceed without classifier
+            log.error("Cannot proceed with simulation without a working classifier");
             throw new ClassifierTrainingException("Cannot instantiate classifier for simulation: " + e.getMessage(), e);
         } catch (final Exception e) {
-            final String errorMessage = String.format("Failed to train classifier on dataset A: %s", e.getMessage());
-            log.error(errorMessage, e);
+            log.error("Failed to train classifier on dataset A: {}", e.getMessage(), e);
+            // Training failure is critical - cannot proceed
+            log.error("Cannot proceed with simulation without trained classifier");
             throw new ClassifierTrainingException("Cannot train classifier for simulation: " + e.getMessage(), e);
         }
     }
@@ -129,16 +134,15 @@ public class RefactoringImpactAnalyzer {
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
-            // Re-throw our custom exception as-is with additional context
-            final String errorMessage = String.format("Dataset creation failed for feature '%s': %s", 
-                    featureNameToModify, e.getMessage());
-            log.error(errorMessage, e);
+            log.error("Dataset creation failed for feature '{}': {}", featureNameToModify, e.getMessage(), e);
+            // This is a critical error - cannot proceed without proper dataset
+            log.error("Cannot proceed with simulation without synthetic dataset B");
             throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
                     featureNameToModify + "': " + e.getMessage(), e);
         } catch (final Exception e) {
-            final String errorMessage = String.format("Failed to create synthetic dataset B for feature '%s': %s", 
-                    featureNameToModify, e.getMessage());
-            log.error(errorMessage, e);
+            log.error("Failed to create synthetic dataset B for feature '{}': {}", featureNameToModify, e.getMessage(), e);
+            // Any other error is also critical for dataset creation
+            log.error("Cannot proceed with simulation due to dataset creation error");
             throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
                     featureNameToModify + "': " + e.getMessage(), e);
         }
