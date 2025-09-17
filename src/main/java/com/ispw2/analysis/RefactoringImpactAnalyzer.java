@@ -76,27 +76,47 @@ public class RefactoringImpactAnalyzer {
         }
     }
     
-    private Classifier createAndTrainClassifierOnA() throws Exception {
+    private Classifier createAndTrainClassifierOnA() throws IOException {
         log.debug("Creating new instance of classifier type: {}", bClassifier.getClass().getSimpleName());
         
-        // Create a new instance of the same classifier type
-        final Classifier bClassifierA = bClassifier.getClass().getDeclaredConstructor().newInstance();
-        
-        // Train it on dataset A
-        log.debug("Training BClassifierA on dataset A with {} instances...", datasetA.numInstances());
-        bClassifierA.buildClassifier(datasetA);
-        
-        return bClassifierA;
+        try {
+            // Create a new instance of the same classifier type
+            final Classifier bClassifierA = bClassifier.getClass().getDeclaredConstructor().newInstance();
+            
+            // Train it on dataset A
+            log.debug("Training BClassifierA on dataset A with {} instances...", datasetA.numInstances());
+            bClassifierA.buildClassifier(datasetA);
+            
+            return bClassifierA;
+        } catch (final ReflectiveOperationException e) {
+            log.error("Failed to create new classifier instance of type {}: {}", 
+                    bClassifier.getClass().getSimpleName(), e.getMessage(), e);
+            throw new IOException("Cannot instantiate classifier for simulation", e);
+        } catch (final Exception e) {
+            log.error("Failed to train classifier on dataset A: {}", e.getMessage(), e);
+            throw new IOException("Cannot train classifier for simulation", e);
+        }
     }
     
     private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) {
-        final Instances datasetB = new Instances(datasetBplus);
-        final Attribute aFeature = datasetB.attribute(featureNameToModify);
-        final double nonSmellyValue = 0.0; 
-        for (int i = 0; i < datasetB.numInstances(); i++) {
-            datasetB.instance(i).setValue(aFeature, nonSmellyValue);
+        try {
+            final Instances datasetB = new Instances(datasetBplus);
+            final Attribute aFeature = datasetB.attribute(featureNameToModify);
+            
+            if (aFeature == null) {
+                log.error("Feature '{}' not found in dataset B+. Cannot create synthetic dataset B.", featureNameToModify);
+                throw new IllegalArgumentException("Feature '" + featureNameToModify + "' not found in dataset");
+            }
+            
+            final double nonSmellyValue = 0.0; 
+            for (int i = 0; i < datasetB.numInstances(); i++) {
+                datasetB.instance(i).setValue(aFeature, nonSmellyValue);
+            }
+            return datasetB;
+        } catch (final Exception e) {
+            log.error("Failed to create synthetic dataset B for feature '{}': {}", featureNameToModify, e.getMessage(), e);
+            throw new RuntimeException("Cannot create synthetic dataset B", e);
         }
-        return datasetB;
     }
     
     private void logSimulationSummaryTable(final Instances dataA, final Instances bPlus, final Instances b, final Instances c, final Classifier bClassifierA) {
