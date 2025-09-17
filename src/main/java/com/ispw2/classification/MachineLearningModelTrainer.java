@@ -33,12 +33,27 @@ public class MachineLearningModelTrainer {
     private final String modelPath;
     private Instances data;
 
+    /**
+     * Constructs a new MachineLearningModelTrainer for training and evaluating classifiers.
+     * 
+     * @param config Configuration manager with system settings
+     * @param processedArffPath Path to the processed ARFF dataset
+     * @param modelPath Path where the best trained model will be saved
+     */
     public MachineLearningModelTrainer(ConfigurationManager config, final String processedArffPath, final String modelPath) {
         this.config = config;
         this.processedArffPath = processedArffPath;
         this.modelPath = modelPath;
     }
     
+    /**
+     * Gets the best trained classifier, either by loading from file or training a new one.
+     * Evaluates multiple base classifiers (RandomForest, NaiveBayes, IBk) and selects
+     * the best one based on AUC score, then applies hyperparameter tuning.
+     * 
+     * @return The best trained classifier
+     * @throws IOException If training or loading fails
+     */
     public Classifier getBestClassifier() throws IOException {
         log.info("Checking for model file at path: {}", modelPath);
         final File modelFile = new File(modelPath);

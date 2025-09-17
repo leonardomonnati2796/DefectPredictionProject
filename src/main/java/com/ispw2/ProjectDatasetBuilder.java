@@ -1,8 +1,8 @@
 package com.ispw2;
 
 import com.ispw2.analysis.MethodAnalysisTracker;
-import com.ispw2.connectors.GitConnector;
-import com.ispw2.connectors.JiraConnector;
+import com.ispw2.connectors.VersionControlConnector;
+import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.BugReport;
 import com.ispw2.model.SoftwareRelease;
 import com.ispw2.model.AnalyzedMethod;
@@ -24,7 +24,7 @@ public class ProjectDatasetBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectDatasetBuilder.class);
     private static final String[] CSV_HEADERS = {
-        "Project", "MethodName", "Release", "LOC", "CyclomaticComplexity", "ParameterCount",
+        "Project", "MethodName", "Release", "CodeSmells", "CyclomaticComplexity", "ParameterCount",
         "Duplication", "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
     };
 
@@ -35,12 +35,22 @@ public class ProjectDatasetBuilder {
 
     private final ConfigurationManager config;
     private final String projectName;
-    private final GitConnector git;
-    private final JiraConnector jira;
+    private final VersionControlConnector git;
+    private final BugTrackingConnector jira;
     private final List<SoftwareRelease> releases;
     private final Map<String, RevCommit> releaseCommits;
 
-    public ProjectDatasetBuilder(ConfigurationManager config, final String projectName, final GitConnector git, final JiraConnector jira, final List<SoftwareRelease> releases, final Map<String, RevCommit> releaseCommits) {
+    /**
+     * Constructs a new ProjectDatasetBuilder for generating defect prediction datasets.
+     * 
+     * @param config Configuration manager with system settings
+     * @param projectName Name of the software project to analyze
+     * @param git Version control connector for Git operations
+     * @param jira Bug tracking connector for JIRA operations
+     * @param releases List of software releases for the project
+     * @param releaseCommits Map of release names to Git commits
+     */
+    public ProjectDatasetBuilder(ConfigurationManager config, final String projectName, final VersionControlConnector git, final BugTrackingConnector jira, final List<SoftwareRelease> releases, final Map<String, RevCommit> releaseCommits) {
         this.config = config;
         this.projectName = projectName;
         this.git = git;
@@ -49,6 +59,12 @@ public class ProjectDatasetBuilder {
         this.releaseCommits = releaseCommits;
     }
 
+    /**
+     * Generates a CSV dataset containing method-level metrics and bug information.
+     * The dataset includes code quality metrics, change history, and bug labels for each method.
+     * 
+     * @param basePath Base directory path where the CSV file will be saved
+     */
     public void generateCsv(final String basePath) {
         log.info("Starting dataset generation for project {}...", this.projectName);
         final String csvFilePath = Paths.get(basePath, this.projectName + ".csv").toString();
@@ -61,7 +77,7 @@ public class ProjectDatasetBuilder {
             log.debug("Calculated proportion median for bug introduction: {}", pMedian);
 
             final Map<String, List<String>> bugToMethodsMap = git.getBugToMethodsMap(tickets);
-            final MethodTracker tracker = new MethodTracker(git);
+            final MethodAnalysisTracker tracker = new MethodAnalysisTracker(git);
 
             final List<String[]> csvData = buildCsvData(releases, tickets, releaseCommits, tracker, bugToMethodsMap, pMedian);
             log.debug("Generated {} total rows (including header) for the dataset.", csvData.size());
@@ -74,7 +90,19 @@ public class ProjectDatasetBuilder {
         }
     }
     
-    private List<String[]> buildCsvData(final List<SoftwareRelease> allReleases, final List<BugReport> tickets, final Map<String, RevCommit> releaseCommits, final MethodTracker tracker, final Map<String, List<String>> bugToMethodsMap, final double pMedian) throws IOException {
+    /**
+     * Builds the CSV data by processing each release and extracting method metrics.
+     * 
+     * @param allReleases List of all software releases
+     * @param tickets List of bug reports
+     * @param releaseCommits Map of release names to Git commits
+     * @param tracker Method analysis tracker
+     * @param bugToMethodsMap Map linking bugs to affected methods
+     * @param pMedian Proportion median for bug introduction calculation
+     * @return List of CSV rows as string arrays
+     * @throws IOException If data processing fails
+     */
+    private List<String[]> buildCsvData(final List<SoftwareRelease> allReleases, final List<BugReport> tickets, final Map<String, RevCommit> releaseCommits, final MethodAnalysisTracker tracker, final Map<String, List<String>> bugToMethodsMap, final double pMedian) throws IOException {
         final List<String[]> csvData = new ArrayList<>();
         csvData.add(CSV_HEADERS);
 
@@ -91,9 +119,9 @@ public class ProjectDatasetBuilder {
                 continue;
             }
 
-            final List<TrackedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
+            final List<AnalyzedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
             log.debug("Found {} methods for release {}", methods.size(), release.name());
-            for (final TrackedMethod method : methods) {
+            for (final AnalyzedMethod method : methods) {
                 final String[] row = createCsvRow(method, release, tickets, bugToMethodsMap, pMedian);
                 csvData.add(row);
             }
@@ -101,14 +129,14 @@ public class ProjectDatasetBuilder {
         return csvData;
     }
 
-    private String[] createCsvRow(final TrackedMethod method, final SoftwareRelease release, final List<BugReport> tickets, final Map<String, List<String>> bugToMethodsMap, final double pMedian) {
+    private String[] createCsvRow(final AnalyzedMethod method, final SoftwareRelease release, final List<BugReport> tickets, final Map<String, List<String>> bugToMethodsMap, final double pMedian) {
         final boolean isBuggy = isMethodBuggy(method, release, tickets, pMedian, bugToMethodsMap);
         final Map<String, Number> features = method.getFeatures();
         final String methodName = method.filepath() + "/" + method.signature();
 
         return new String[]{
             this.projectName, methodName, release.name(),
-            features.getOrDefault("LOC", 0).toString(),
+            features.getOrDefault("CodeSmells", 0).toString(),
             features.getOrDefault("CyclomaticComplexity", 0).toString(),
             features.getOrDefault("ParameterCount", 0).toString(),
             features.getOrDefault("Duplication", 0).toString(),
@@ -132,7 +160,7 @@ public class ProjectDatasetBuilder {
         }
     }
 
-    private boolean isMethodBuggy(final TrackedMethod method, final SoftwareRelease currentRelease, final List<BugReport> allTickets, final double pMedian, final Map<String, List<String>> bugToMethodsMap) {
+    private boolean isMethodBuggy(final AnalyzedMethod method, final SoftwareRelease currentRelease, final List<BugReport> allTickets, final double pMedian, final Map<String, List<String>> bugToMethodsMap) {
         final String methodKey = method.filepath() + METHOD_KEY_SEPARATOR + method.signature();
         
         for (final BugReport ticket : allTickets) {

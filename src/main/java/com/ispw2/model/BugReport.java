@@ -65,7 +65,7 @@ public class BugReport {
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return key.equals(((JiraTicket) o).key);
+        return key.equals(((BugReport) o).key);
     }
 
     @Override

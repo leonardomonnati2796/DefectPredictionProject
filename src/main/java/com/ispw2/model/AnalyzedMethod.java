@@ -7,20 +7,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public final class TrackedMethod {
-    private static final Logger log = LoggerFactory.getLogger(TrackedMethod.class);
+public final class AnalyzedMethod {
+    private static final Logger log = LoggerFactory.getLogger(AnalyzedMethod.class);
 
     private final String id;
     private final String signature;
     private final String filepath;
     private final Map<String, Number> features = new HashMap<>();
 
-    public TrackedMethod(final String id, final String signature, final String filepath) {
+    public AnalyzedMethod(final String id, final String signature, final String filepath) {
         this.id = id;
         this.signature = signature;
         this.filepath = filepath;
         if (log.isDebugEnabled()) {
-            log.debug("Creating new TrackedMethod: id={}, signature='{}', filepath='{}'", id, signature, filepath);
+            log.debug("Creating new AnalyzedMethod: id={}, signature='{}', filepath='{}'", id, signature, filepath);
         }
     }
 

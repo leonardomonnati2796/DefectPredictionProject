@@ -1,13 +1,13 @@
 package com.ispw2;
 
-import com.ispw2.analysis.DataAnalyzer;
-import com.ispw2.analysis.FeatureComparer;
-import com.ispw2.analysis.WhatIfSimulator;
-import com.ispw2.classification.ClassifierRunner;
-import com.ispw2.connectors.GitConnector;
-import com.ispw2.connectors.JiraConnector;
+import com.ispw2.analysis.CodeQualityAnalyzer;
+import com.ispw2.analysis.MethodFeatureComparator;
+import com.ispw2.analysis.RefactoringImpactAnalyzer;
+import com.ispw2.classification.MachineLearningModelTrainer;
+import com.ispw2.connectors.VersionControlConnector;
+import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.SoftwareRelease;
-import com.ispw2.preprocessing.DataPreprocessor;
+import com.ispw2.preprocessing.DatasetPreprocessor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,12 +42,18 @@ public class DefectPredictionPipeline {
         String originalCsvPath,
         String processedArffPath,
         String modelPath,
-        GitConnector git,
-        JiraConnector jira,
+        VersionControlConnector git,
+        BugTrackingConnector jira,
         List<SoftwareRelease> releases,
         Map<String, RevCommit> releaseCommits
     ) {}
 
+    /**
+     * Main entry point for the defect prediction pipeline.
+     * Initializes the system, creates necessary directories, and processes all configured projects.
+     * 
+     * @param args Command line arguments (currently unused)
+     */
     public static void main(final String[] args) {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
@@ -90,6 +96,14 @@ public class DefectPredictionPipeline {
         log.info("All projects processed and evaluated successfully.");
     }
 
+    /**
+     * Processes all configured software projects through the complete defect prediction pipeline.
+     * Each project goes through dataset generation, preprocessing, analysis, and simulation.
+     * 
+     * @param config Configuration manager containing system settings
+     * @param datasetsPath Path where datasets will be stored
+     * @param gitProjectsPath Path where Git repositories will be cloned
+     */
     private static void processAllProjects(ConfigurationManager config, Path datasetsPath, Path gitProjectsPath) {
         log.debug("Starting to process all configured projects...");
         for (final SoftwareProject project : PROJECTS_TO_ANALYZE) {
@@ -107,6 +121,16 @@ public class DefectPredictionPipeline {
         log.debug("All configured projects have been processed.");
     }
 
+    /**
+     * Executes the complete defect prediction pipeline for a single software project.
+     * This includes dataset generation, preprocessing, machine learning training, and analysis.
+     * 
+     * @param config Configuration manager with system settings
+     * @param project The software project to analyze
+     * @param datasetsBasePath Base path for storing datasets
+     * @param gitProjectsPath Path for Git repository storage
+     * @throws IOException If file operations fail
+     */
     private static void runPipelineFor(ConfigurationManager config, final SoftwareProject project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
         log.info("---------------------------------------------------------");
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
@@ -117,10 +141,10 @@ public class DefectPredictionPipeline {
         final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
         final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
 
-        final GitConnector git = new GitConnector(project.name(), project.gitUrl(), repoPath);
+        final VersionControlConnector git = new VersionControlConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
 
-        final JiraConnector jira = new JiraConnector(project.name());
+        final BugTrackingConnector jira = new BugTrackingConnector(project.name());
         final List<SoftwareRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
         
@@ -139,13 +163,13 @@ public class DefectPredictionPipeline {
 
     private static void runAnalysisAndSimulation(ProjectContext context) {
         try {
-            final ClassifierRunner runner = new ClassifierRunner(context.config(), context.processedArffPath(), context.modelPath());
+            final MachineLearningModelTrainer runner = new MachineLearningModelTrainer(context.config(), context.processedArffPath(), context.modelPath());
             final Classifier bestModel = runner.getBestClassifier();
             
-            final DataAnalyzer analyzer = new DataAnalyzer(context.config(), context.originalCsvPath(), context.processedArffPath(), context.git(), context.releaseCommits());
+            final CodeQualityAnalyzer analyzer = new CodeQualityAnalyzer(context.config(), context.originalCsvPath(), context.processedArffPath(), context.git(), context.releaseCommits());
             final String aFeature = analyzer.findAndSaveActionableMethod();
 
-            final WhatIfSimulator simulator = new WhatIfSimulator(context.processedArffPath(), bestModel, aFeature);
+            final RefactoringImpactAnalyzer simulator = new RefactoringImpactAnalyzer(context.processedArffPath(), bestModel, aFeature);
             simulator.runFullDatasetSimulation();
 
             final String originalMethodPath = Paths.get(context.datasetsBasePath(), context.projectName() + "_AFMethod.txt").toString();
@@ -155,7 +179,7 @@ public class DefectPredictionPipeline {
             if (log.isDebugEnabled()){
                 log.debug("Comparing original method at '{}' with refactored method at '{}'", originalMethodPath, refactoredMethodPath);
             }
-            final FeatureComparer comparer = new FeatureComparer();
+            final MethodFeatureComparator comparer = new MethodFeatureComparator();
             comparer.compareMethods(originalMethodPath, refactoredMethodPath);
 
         } catch (Exception e) {
@@ -172,7 +196,7 @@ public class DefectPredictionPipeline {
             log.info("Dataset already exists. Skipping generation.");
         } else {
             log.info("Dataset not found or is empty. Generating...");
-            final DatasetGenerator generator = new DatasetGenerator(context.config(), context.projectName(), context.git(), context.jira(), context.releases(), context.releaseCommits());
+            final ProjectDatasetBuilder generator = new ProjectDatasetBuilder(context.config(), context.projectName(), context.git(), context.jira(), context.releases(), context.releaseCommits());
             generator.generateCsv(context.datasetsBasePath());
         }
     }
@@ -186,7 +210,7 @@ public class DefectPredictionPipeline {
         } else {
             log.info("ARFF file not found. Starting preprocessing...");
             try {
-                final DataPreprocessor processor = new DataPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
+                final DatasetPreprocessor processor = new DatasetPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
                 processor.processData();
                 log.info("Data preprocessing complete. Output: {}", context.processedArffPath());
             } catch (Exception e) {

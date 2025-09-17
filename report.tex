@@ -1,0 +1,477 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Sistema di Predizione dei Difetti Software}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstset{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    language=Java
+}
+
+\title{\textbf{Sistema di Predizione dei Difetti Software\\basato su Machine Learning e Analisi del Codice}}
+\author{Progetto di Ingegneria del Software}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduzione}
+
+\subsection{Cosa sono i difetti software?}
+
+I \textbf{difetti software} (o bug) sono errori nel codice che causano comportamenti inaspettati o indesiderati del software. Questi possono manifestarsi come:
+\begin{itemize}
+    \item \textbf{Crash dell'applicazione}: Il programma si chiude inaspettatamente
+    \item \textbf{Comportamenti errati}: Il software non fa quello che dovrebbe fare
+    \item \textbf{Problemi di performance}: Il software è troppo lento o consuma troppa memoria
+    \item \textbf{Vulnerabilità di sicurezza}: Il software può essere sfruttato da attaccanti
+\end{itemize}
+
+I difetti software sono costosi da correggere, specialmente se scoperti tardi nel ciclo di sviluppo. Secondo studi, il costo di correzione aumenta esponenzialmente con il tempo: un bug scoperto in fase di produzione costa 100 volte di più di uno scoperto durante la progettazione.
+
+\subsection{Perché predire i difetti?}
+
+La \textbf{predizione dei difetti} è una tecnica che utilizza l'intelligenza artificiale per identificare automaticamente le parti del codice che hanno maggiori probabilità di contenere bug. I vantaggi sono:
+
+\begin{itemize}
+    \item \textbf{Riduzione dei costi}: Identificare i bug prima che vengano scoperti dagli utenti
+    \item \textbf{Miglioramento della qualità}: Concentrare i test e le revisioni del codice sulle aree più critiche
+    \item \textbf{Pianificazione migliore}: Allocare le risorse di sviluppo in modo più efficiente
+    \item \textbf{Prevenzione}: Evitare che i bug vengano introdotti in primo luogo
+\end{itemize}
+
+\section{Panoramica del Sistema}
+
+Il nostro sistema implementa un approccio completo per la predizione dei difetti software che combina:
+
+\begin{enumerate}
+    \item \textbf{Analisi del codice sorgente} per estrarre metriche di qualità
+    \item \textbf{Integrazione con sistemi di tracciamento bug} (JIRA)
+    \item \textbf{Controllo versione} (Git) per tracciare le modifiche
+    \item \textbf{Machine Learning} per costruire modelli predittivi
+    \item \textbf{Simulazione what-if} per valutare l'impatto del refactoring
+\end{enumerate}
+
+\subsection{Architettura del Sistema}
+
+Il sistema è organizzato in moduli specializzati:
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[language=Java, basicstyle=\ttfamily\small]
+com.ispw2/
+├── DefectPredictionPipeline.java     // Orchestratore principale
+├── ProjectDatasetBuilder.java        // Generatore del dataset
+├── MachineLearningModelTrainer.java  // Addestramento modelli ML
+├── analysis/
+│   ├── CodeQualityAnalyzer.java      // Analisi delle feature
+│   ├── RefactoringImpactAnalyzer.java // Simulazione refactoring
+│   ├── MethodFeatureComparator.java  // Confronto feature
+│   ├── MethodAnalysisTracker.java    // Tracciamento metodi
+│   ├── CodeMetricsCalculator.java    // Calcolo metriche
+│   └── CodeQualityMetrics.java       // Costanti metriche
+├── connectors/
+│   ├── VersionControlConnector.java  // Integrazione Git
+│   └── BugTrackingConnector.java     // Integrazione JIRA
+├── model/
+│   ├── SoftwareProject.java          // Modello progetto
+│   ├── BugReport.java                // Modello bug report
+│   ├── SoftwareRelease.java          // Modello release
+│   └── AnalyzedMethod.java           // Modello metodo analizzato
+└── preprocessing/
+    ├── DatasetPreprocessor.java      // Preprocessing dati
+    └── DatasetUtilities.java         // Utility dati
+\end{lstlisting}
+\caption{Struttura del progetto}
+\end{figure}
+
+\section{Metodologia e Specifiche del Progetto}
+
+Il progetto segue una metodologia rigorosa basata su 13 passaggi specifici:
+
+\subsection{Milestone 1: Creazione del Dataset}
+
+\textbf{Passaggio 1: Creazione del Dataset A}
+
+Il sistema inizia creando un dataset completo che combina:
+\begin{itemize}
+    \item \textbf{Metriche del codice}: Linee di codice, complessità ciclomatica, numero di parametri, ecc.
+    \item \textbf{Informazioni sui bug}: Dati provenienti da JIRA sui bug effettivi
+    \item \textbf{Informazioni temporali}: Release e commit Git per tracciare l'evoluzione
+\end{itemize}
+
+\subsection{Milestone 2: Machine Learning e Analisi}
+
+\textbf{Passaggio 2: Confronto Classificatori}
+
+Il sistema testa tre algoritmi di machine learning:
+\begin{itemize}
+    \item \textbf{Random Forest}: Algoritmo ensemble che combina più alberi decisionali
+    \item \textbf{Naive Bayes}: Algoritmo probabilistico basato sul teorema di Bayes
+    \item \textbf{k-Nearest Neighbors (k-NN)}: Algoritmo che classifica basandosi sui vicini più prossimi
+\end{itemize}
+
+\textbf{Passaggio 3: Selezione del Miglior Classificatore}
+
+Il sistema seleziona automaticamente il classificatore con le migliori performance basandosi su:
+\begin{itemize}
+    \item \textbf{AUC (Area Under Curve)}: Misura la capacità di distinguere tra classi
+    \item \textbf{Precisione}: Percentuale di predizioni corrette tra quelle positive
+    \item \textbf{Recall}: Percentuale di casi positivi correttamente identificati
+    \item \textbf{Kappa}: Misura di accordo tra predizioni e realtà
+\end{itemize}
+
+\textbf{Passaggio 4: Analisi delle Correlazioni}
+
+Il sistema calcola la correlazione tra ogni metrica del codice e la presenza di bug utilizzando l'\textbf{Information Gain}, una misura che quantifica quanto una feature riduce l'incertezza nella classificazione.
+
+\textbf{Passaggio 5: Identificazione della Feature Actionable}
+
+Tra tutte le metriche, il sistema identifica quella "actionable" (modificabile) con la correlazione più alta con i bug. Le feature actionable sono quelle che i developer possono effettivamente migliorare, come:
+\begin{itemize}
+    \item \textbf{CodeSmells}: Numero di code smells (cattive pratiche di programmazione) - \textbf{NUOVA METRICA PRINCIPALE}
+    \item \textbf{CyclomaticComplexity}: Complessità ciclomatica
+    \item \textbf{ParameterCount}: Numero di parametri del metodo
+    \item \textbf{Duplication}: Livello di duplicazione del codice
+\end{itemize}
+
+\subsection{Analisi e Refactoring}
+
+\textbf{Passaggio 6: Identificazione del Metodo Target}
+
+Il sistema trova il metodo buggy nell'ultima release che ha il valore più alto della feature actionable identificata. Questo metodo rappresenta il candidato ideale per il refactoring.
+
+\textbf{Passaggio 7: Refactoring Simulato}
+
+Il sistema crea una versione "refactored" del metodo target simulando la riduzione della feature actionable (ad esempio, riducendo NSmells da un valore > 0 a 0).
+
+\textbf{Passaggio 8: Calcolo delle Nuove Feature}
+
+Il sistema ricalcola tutte le metriche del codice per il metodo refactored.
+
+\textbf{Passaggio 9: Confronto delle Feature}
+
+Il sistema confronta le metriche originali con quelle del metodo refactored per valutare l'impatto del refactoring.
+
+\subsection{Simulazione What-If}
+
+\textbf{Passaggio 10: Creazione dei Dataset Sintetici}
+
+Il sistema crea tre dataset specializzati:
+\begin{itemize}
+    \item \textbf{B+}: Porzione del dataset originale con la feature actionable > 0 (metodi "a rischio")
+    \item \textbf{C}: Porzione del dataset originale con la feature actionable = 0 (metodi "sicuri")
+    \item \textbf{B}: Dataset B+ modificato artificialmente ponendo la feature actionable = 0
+\end{itemize}
+
+\textbf{Passaggio 11: Addestramento del Modello}
+
+Il sistema addestra il miglior classificatore sul dataset completo A per creare il "BClassifierA".
+
+\textbf{Passaggio 12: Predizioni e Tabella di Confronto}
+
+Il sistema utilizza il BClassifierA per predire i difetti su tutti i dataset (A, B+, B, C) e crea una tabella di confronto.
+
+\textbf{Passaggio 13: Analisi dei Risultati}
+
+Il sistema calcola due metriche chiave:
+\begin{itemize}
+    \item \textbf{Drop}: $(actual\_B+ - predicted\_B) / actual\_B+$
+    \item \textbf{Reduction}: $(actual\_B+ - predicted\_B) / actual\_A$
+\end{itemize}
+
+Queste metriche rispondono alla domanda: "Quanti bug potrebbero essere prevenuti eliminando la feature actionable?"
+
+\section{Implementazione Tecnica}
+
+\subsection{Tecnologie Utilizzate}
+
+\begin{itemize}
+    \item \textbf{Java 17}: Linguaggio di programmazione principale
+    \item \textbf{Weka}: Libreria per machine learning e data mining
+    \item \textbf{JGit}: Libreria Java per l'integrazione con Git
+    \item \textbf{Apache HTTP Client}: Per le chiamate API a JIRA
+    \item \textbf{JavaParser}: Per l'analisi statica del codice Java
+    \item \textbf{SLF4J + Logback}: Per il logging
+    \item \textbf{Maven}: Per la gestione delle dipendenze
+\end{itemize}
+
+\subsection{Flusso di Esecuzione}
+
+\begin{enumerate}
+    \item \textbf{Inizializzazione}: Il sistema carica la configurazione e prepara le directory di lavoro
+    \item \textbf{Clonazione Repository}: Scarica i repository Git dei progetti da analizzare
+    \item \textbf{Recupero Dati JIRA}: Ottiene informazioni sui bug e le release
+    \item \textbf{Generazione Dataset}: Crea il dataset combinando metriche del codice e dati sui bug
+    \item \textbf{Preprocessing}: Pulisce e prepara i dati per l'analisi
+    \item \textbf{Addestramento Modelli}: Testa e seleziona il miglior classificatore
+    \item \textbf{Analisi Feature}: Identifica la feature actionable più correlata
+    \item \textbf{Identificazione Target}: Trova il metodo candidato per il refactoring
+    \item \textbf{Simulazione}: Esegue la simulazione what-if
+    \item \textbf{Report}: Genera i risultati finali
+\end{enumerate}
+
+\section{Esempi Pratici}
+
+\subsection{Esempio di Metrica del Codice}
+
+Consideriamo un metodo Java:
+
+\begin{lstlisting}[language=Java, caption=Esempio di metodo con code smells]
+public class UserService {
+    public User createUser(String name, String email, String phone, 
+                          String address, String city, String country, 
+                          String zipCode, Date birthDate, String gender) {
+        // 50+ linee di codice
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+        if (email == null || email.isEmpty()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        // ... molte altre validazioni
+        // ... logica complessa per creare l'utente
+        return new User(/* molti parametri */);
+    }
+}
+\end{lstlisting}
+
+Questo metodo ha diversi problemi:
+\begin{itemize}
+    \item \textbf{Troppi parametri} (9): Viola il principio "Long Parameter List"
+    \item \textbf{Troppo lungo} (50+ linee): Viola il principio "Long Method"
+    \item \textbf{Troppo complesso}: Molte condizioni e logica annidata
+\end{itemize}
+
+Il nostro sistema identificherebbe questo come un candidato per il refactoring.
+
+\subsection{Esempio di Refactoring}
+
+Dopo il refactoring, il metodo potrebbe diventare:
+
+\begin{lstlisting}[language=Java, caption=Metodo refactored]
+public class UserService {
+    public User createUser(CreateUserRequest request) {
+        validateRequest(request);
+        return buildUser(request);
+    }
+    
+    private void validateRequest(CreateUserRequest request) {
+        if (request.getName() == null || request.getName().isEmpty()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+        // ... altre validazioni
+    }
+    
+    private User buildUser(CreateUserRequest request) {
+        // ... logica per creare l'utente
+        return new User(/* parametri dal request */);
+    }
+}
+\end{lstlisting}
+
+Il metodo refactored ha:
+\begin{itemize}
+    \item \textbf{1 parametro} invece di 9
+    \item \textbf{Metodi più corti} e focalizzati
+    \item \textbf{Complessità ridotta}
+\end{itemize}
+
+\section{Risultati e Metriche}
+
+\subsection{Nuova Metrica: CodeSmells}
+
+Il sistema è stato aggiornato per utilizzare \textbf{CodeSmells} come metrica principale invece di LOC (Lines of Code). Questa scelta è motivata da:
+
+\begin{itemize}
+    \item \textbf{Actionability}: I code smells sono direttamente modificabili dai developer
+    \item \textbf{Qualità del Codice}: Riflettono meglio la qualità e manutenibilità del codice
+    \item \textbf{Correlazione con i Bug}: Sono più predittivi dei difetti rispetto alle semplici linee di codice
+\end{itemize}
+
+La metrica CodeSmells viene calcolata considerando:
+\begin{itemize}
+    \item \textbf{Long Method}: Metodi con più di 20 linee di codice
+    \item \textbf{Too Many Parameters}: Metodi con più di 4 parametri
+    \item \textbf{High Complexity}: Metodi con complessità ciclomatica > 10
+\end{itemize}
+
+\subsection{Tabella di Confronto}
+
+Il sistema genera una tabella che mostra:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Dataset} & \textbf{Instanze Totali} & \textbf{Difetti Predetti} & \textbf{Difetti Reali} \\
+\midrule
+A (Dataset Completo) & 1000 & 150 & 120 \\
+B+ (A Rischio) & 300 & 90 & 80 \\
+B (Refactored) & 300 & 45 & 80 \\
+C (Sicuri) & 700 & 60 & 40 \\
+\bottomrule
+\end{tabular}
+\caption{Esempio di risultati della simulazione}
+\end{table}
+
+\subsection{Calcolo delle Metriche}
+
+Dalla tabella precedente:
+
+\begin{align}
+\text{Drop} &= \frac{\text{actual\_B+} - \text{predicted\_B}}{\text{actual\_B+}} = \frac{80 - 45}{80} = 0.4375 = 43.75\% \\
+\text{Reduction} &= \frac{\text{actual\_B+} - \text{predicted\_B}}{\text{actual\_A}} = \frac{80 - 45}{120} = 0.2917 = 29.17\%
+\end{align}
+
+\textbf{Interpretazione:}
+\begin{itemize}
+    \item \textbf{Drop 43.75\%}: Il refactoring potrebbe ridurre i difetti del 43.75\% nei metodi a rischio
+    \item \textbf{Reduction 29.17\%}: Il refactoring potrebbe ridurre i difetti totali del 29.17\%
+\end{itemize}
+
+\section{Benefici del Sistema}
+
+\subsection{Per gli Sviluppatori}
+
+\begin{itemize}
+    \item \textbf{Feedback immediato}: Identificazione automatica di potenziali problemi nel codice
+    \item \textbf{Prioritizzazione}: Focus sulle aree più critiche per la qualità
+    \item \textbf{Apprendimento}: Comprensione di quali pratiche di coding evitare
+\end{itemize}
+
+\subsection{Per i Project Manager}
+
+\begin{itemize}
+    \item \textbf{Pianificazione}: Stima più accurata dei tempi di sviluppo
+    \item \textbf{Allocazione risorse}: Distribuzione ottimale del team di testing
+    \item \textbf{Controllo qualità}: Monitoraggio continuo della qualità del codice
+\end{itemize}
+
+\subsection{Per l'Azienda}
+
+\begin{itemize}
+    \item \textbf{Riduzione costi}: Meno bug in produzione significa meno supporto clienti
+    \item \textbf{Miglior reputazione}: Software più stabile e affidabile
+    \item \textbf{Competitività}: Prodotti di qualità superiore
+\end{itemize}
+
+\section{Limiti e Considerazioni}
+
+\subsection{Limiti del Sistema}
+
+\begin{itemize}
+    \item \textbf{False Positives}: Il sistema potrebbe segnalare come problematici metodi che in realtà non lo sono
+    \item \textbf{False Negatives}: Il sistema potrebbe non identificare alcuni bug reali
+    \item \textbf{Dipendenza dai dati}: La qualità delle predizioni dipende dalla qualità dei dati storici
+    \item \textbf{Contesto specifico}: I modelli sono addestrati su progetti specifici e potrebbero non generalizzare
+\end{itemize}
+
+\subsection{Considerazioni Etiche}
+
+\begin{itemize}
+    \item \textbf{Privacy}: I dati del codice sorgente devono essere protetti
+    \item \textbf{Trasparenza}: Gli sviluppatori devono capire come funziona il sistema
+    \item \textbf{Equità}: Il sistema non deve discriminare tra sviluppatori o team
+\end{itemize}
+
+\section{Conclusioni}
+
+Il sistema di predizione dei difetti software presentato rappresenta un approccio innovativo e pratico per migliorare la qualità del software. Combinando tecniche avanzate di machine learning con analisi approfondite del codice sorgente, il sistema offre:
+
+\textbf{Novità Implementate:}
+\begin{itemize}
+    \item \textbf{Metrica CodeSmells}: Sostituzione di LOC con una metrica più actionable
+    \item \textbf{Architettura Riorganizzata}: Rinominazione delle classi per maggiore chiarezza
+    \item \textbf{Modularità Migliorata}: Separazione delle responsabilità tra i componenti
+\end{itemize}
+
+\begin{enumerate}
+    \item \textbf{Identificazione proattiva} dei potenziali problemi nel codice
+    \item \textbf{Quantificazione dell'impatto} delle pratiche di refactoring
+    \item \textbf{Supporto decisionale} per la gestione della qualità del software
+    \item \textbf{Integrazione completa} con gli strumenti di sviluppo esistenti
+\end{enumerate}
+
+Il sistema è stato progettato per essere:
+\begin{itemize}
+    \item \textbf{Modulare}: Ogni componente può essere modificato indipendentemente
+    \item \textbf{Scalabile}: Può gestire progetti di diverse dimensioni
+    \item \textbf{Estensibile}: Nuove metriche e algoritmi possono essere facilmente aggiunti
+    \item \textbf{Manutenibile}: Codice ben strutturato e documentato
+\end{itemize}
+
+\subsection{Sviluppi Futuri}
+
+Possibili miglioramenti futuri includono:
+\begin{itemize}
+    \item \textbf{Integrazione con IDE}: Plugin per editor come IntelliJ IDEA o VS Code
+    \item \textbf{Analisi in tempo reale}: Predizioni durante la scrittura del codice
+    \item \textbf{Apprendimento continuo}: Aggiornamento automatico dei modelli
+    \item \textbf{Interfaccia web}: Dashboard per visualizzare i risultati
+\end{itemize}
+
+\section{Appendice: Glossario}
+
+\begin{description}
+    \item[API] Application Programming Interface - Interfaccia per la comunicazione tra software
+    \item[AUC] Area Under Curve - Metrica per valutare le performance di un classificatore
+    \item[Code Smell] Cattiva pratica di programmazione che indica un potenziale problema
+    \item[Commit] Snapshot delle modifiche nel controllo versione
+    \item[Cross-validation] Tecnica per valutare la generalizzazione di un modello ML
+    \item[Feature] Caratteristica o attributo utilizzato per la predizione
+    \item[Git] Sistema di controllo versione distribuito
+    \item[Information Gain] Misura della riduzione dell'incertezza
+    \item[JIRA] Sistema di tracciamento bug e gestione progetti
+    \item[LOC] Lines of Code - Numero di linee di codice
+    \item[Machine Learning] Campo dell'AI che permette ai computer di apprendere dai dati
+    \item[Refactoring] Ristrutturazione del codice senza cambiarne il comportamento
+    \item[Repository] Archivio che contiene il codice sorgente e la sua storia
+    \item[Release] Versione pubblicata del software
+    \item[What-if Analysis] Analisi di scenario per valutare l'impatto di cambiamenti
+\end{description}
+
+\end{document}

@@ -1,6 +1,6 @@
 package com.ispw2.analysis;
 
-import com.ispw2.preprocessing.DataHelper;
+import com.ispw2.preprocessing.DatasetUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -16,14 +16,27 @@ public class RefactoringImpactAnalyzer {
     private final Classifier bClassifier;
     private final String aFeatureName;
 
+    /**
+     * Constructs a new RefactoringImpactAnalyzer for simulating the impact of refactoring.
+     * 
+     * @param processedArffPath Path to the processed ARFF dataset
+     * @param bClassifier The best trained classifier
+     * @param aFeatureName Name of the actionable feature to simulate
+     */
     public RefactoringImpactAnalyzer(final String processedArffPath, final Classifier bClassifier, final String aFeatureName) {
         this.processedArffPath = processedArffPath;
         this.bClassifier = bClassifier;
         this.aFeatureName = aFeatureName;
     }
 
+    /**
+     * Runs the complete what-if simulation to analyze the impact of refactoring.
+     * Creates synthetic datasets, trains a new classifier, and calculates impact metrics.
+     * 
+     * @throws IOException If simulation fails
+     */
     public void runFullDatasetSimulation() throws IOException {
-        this.datasetA = DataHelper.loadArff(processedArffPath);
+        this.datasetA = DatasetUtilities.loadArff(processedArffPath);
         this.datasetA.setClassIndex(this.datasetA.numAttributes() - 1);
         log.info("[Milestone 2, Step 10] Starting What-If Simulation using AFeature: {}", this.aFeatureName);
         
@@ -40,8 +53,8 @@ public class RefactoringImpactAnalyzer {
             log.info("BClassifierA training completed successfully.");
             
             log.debug("Splitting dataset into B+ (at-risk) and C (safe) subsets.");
-            final Instances datasetBplus = DataHelper.filterInstances(datasetA, this.aFeatureName, ">", 0);
-            final Instances datasetC = DataHelper.filterInstances(datasetA, this.aFeatureName, "<=", 0);
+            final Instances datasetBplus = DatasetUtilities.filterInstances(datasetA, this.aFeatureName, ">", 0);
+            final Instances datasetC = DatasetUtilities.filterInstances(datasetA, this.aFeatureName, "<=", 0);
             if (log.isDebugEnabled()) {
                 log.debug("Dataset B+ ({} > 0) contains {} instances.", aFeatureName, datasetBplus.numInstances());
                 log.debug("Dataset C ({} <= 0) contains {} instances.", aFeatureName, datasetC.numInstances());
@@ -88,10 +101,10 @@ public class RefactoringImpactAnalyzer {
         log.info("[Milestone 2, Step 12] Defect Prediction Summary Table:");
 
         if (log.isInfoEnabled()) {
-            int defectsInA = DataHelper.countDefective(bClassifierA, dataA);
-            int defectsInBplus = DataHelper.countDefective(bClassifierA, bPlus);
-            int defectsInB = DataHelper.countDefective(bClassifierA, b);
-            int defectsInC = DataHelper.countDefective(bClassifierA, c);
+            int defectsInA = DatasetUtilities.countDefective(bClassifierA, dataA);
+            int defectsInBplus = DatasetUtilities.countDefective(bClassifierA, bPlus);
+            int defectsInB = DatasetUtilities.countDefective(bClassifierA, b);
+            int defectsInC = DatasetUtilities.countDefective(bClassifierA, c);
 
             String separator = "------------------------------------------------------------------";
             String headerFormat = "| %-20s | %-15s | %-15s |";
@@ -112,8 +125,8 @@ public class RefactoringImpactAnalyzer {
         log.info("[PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...");
         
         // Calculate predicted defects for B+ (original) and B (refactored)
-        final int predictedDefectsInBplus = DataHelper.countDefective(bClassifierA, bPlus);
-        final int predictedDefectsInB = DataHelper.countDefective(bClassifierA, b);
+        final int predictedDefectsInBplus = DatasetUtilities.countDefective(bClassifierA, bPlus);
+        final int predictedDefectsInB = DatasetUtilities.countDefective(bClassifierA, b);
         
         log.info("--- PRELIMINARY ANALYSIS ---");
         log.info("Predicted defects in B+ (original with {} > 0): {}", aFeatureName, predictedDefectsInBplus);
@@ -148,9 +161,9 @@ public class RefactoringImpactAnalyzer {
     private void analyzeResults(final Instances bPlus, final Instances b, final Classifier bClassifierA) {
         log.info("[Milestone 2, Step 13] Calculating final metrics based on custom formulas...");
 
-        final int actualDefectsInA = DataHelper.countActualDefective(this.datasetA);
-        final int actualDefectsInBplus = DataHelper.countActualDefective(bPlus);
-        final int predictedDefectsInB = DataHelper.countDefective(bClassifierA, b);
+        final int actualDefectsInA = DatasetUtilities.countActualDefective(this.datasetA);
+        final int actualDefectsInBplus = DatasetUtilities.countActualDefective(bPlus);
+        final int predictedDefectsInB = DatasetUtilities.countDefective(bClassifierA, b);
 
         if(log.isDebugEnabled()){
             log.debug("--- Formula Components ---");

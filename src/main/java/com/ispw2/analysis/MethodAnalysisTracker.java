@@ -94,8 +94,8 @@ public class MethodAnalysisTracker {
 
     private void calculateAllFeatures(final AnalyzedMethod method, final CallableDeclaration<?> callable, final RevCommit releaseCommit) {
         log.debug("Calculating all features for method: {}", method.signature());
-        method.addAllFeatures(StaticMetricsCalculator.calculateAll(callable));
-        method.addFeature(Metrics.DUPLICATION, 0);
+        method.addAllFeatures(CodeMetricsCalculator.calculateAll(callable));
+        method.addFeature(CodeQualityMetrics.DUPLICATION, 0);
 
         try {
             method.addAllFeatures(calculateChangeHistoryFeatures(method, callable, releaseCommit));

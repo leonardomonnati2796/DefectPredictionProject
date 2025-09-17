@@ -32,6 +32,11 @@ public class BugTrackingConnector {
     private static final String JIRA_URL = "https://issues.apache.org/jira";
     private static final DateTimeFormatter JIRA_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 
+    /**
+     * Constructs a new BugTrackingConnector for JIRA operations.
+     * 
+     * @param projectKey JIRA project key (e.g., "BOOKKEEPER", "OPENJPA")
+     */
     public BugTrackingConnector(final String projectKey) {
         this.projectKey = projectKey;
         log.debug("BugTrackingConnector initialized for project key: {}", projectKey);

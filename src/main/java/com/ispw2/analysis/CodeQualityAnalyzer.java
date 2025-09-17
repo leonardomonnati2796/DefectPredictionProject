@@ -4,8 +4,8 @@ import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import com.ispw2.ConfigurationManager;
-import com.ispw2.connectors.GitConnector;
-import com.ispw2.preprocessing.DataHelper;
+import com.ispw2.connectors.VersionControlConnector;
+import com.ispw2.preprocessing.DatasetUtilities;
 import org.apache.commons.csv.CSVRecord;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
@@ -51,10 +51,19 @@ public class CodeQualityAnalyzer {
     private final ConfigurationManager config;
     private final String originalCsvPath;
     private final String processedArffPath;
-    private final GitConnector git;
+    private final VersionControlConnector git;
     private final Map<String, RevCommit> releaseCommits;
 
-    public CodeQualityAnalyzer(ConfigurationManager config, final String originalCsvPath, final String processedArffPath, final GitConnector git, final Map<String, RevCommit> releaseCommits) {
+    /**
+     * Constructs a new CodeQualityAnalyzer for identifying actionable features and methods.
+     * 
+     * @param config Configuration manager with system settings
+     * @param originalCsvPath Path to the original CSV dataset
+     * @param processedArffPath Path to the processed ARFF dataset
+     * @param git Version control connector for Git operations
+     * @param releaseCommits Map of release names to Git commits
+     */
+    public CodeQualityAnalyzer(ConfigurationManager config, final String originalCsvPath, final String processedArffPath, final VersionControlConnector git, final Map<String, RevCommit> releaseCommits) {
         this.config = config;
         this.originalCsvPath = originalCsvPath;
         this.processedArffPath = processedArffPath;
@@ -62,10 +71,18 @@ public class CodeQualityAnalyzer {
         this.releaseCommits = releaseCommits;
     }
 
+    /**
+     * Finds the most actionable feature and identifies the target method for refactoring.
+     * Uses Information Gain to identify the feature most correlated with bugginess,
+     * then finds the buggy method with the highest value of that feature.
+     * 
+     * @return The name of the most actionable feature
+     * @throws IOException If analysis fails
+     */
     public String findAndSaveActionableMethod() throws IOException {
         log.info("Starting data analysis to find actionable method...");
         try {
-            final Instances data = DataHelper.loadArff(processedArffPath);
+            final Instances data = DatasetUtilities.loadArff(processedArffPath);
             data.setClassIndex(data.numAttributes() - 1);
 
             final String aFeature = findTopActionableFeature(data);
@@ -118,7 +135,7 @@ public class CodeQualityAnalyzer {
         log.info("[Milestone 2, Step 6] Identifying Target Method (AFMethod)...");
         log.debug("Searching for target method using AFeature: {}", aFeature);
         
-        final List<CSVRecord> records = DataHelper.readCsv(originalCsvPath);
+        final List<CSVRecord> records = DatasetUtilities.readCsv(originalCsvPath);
         if (records.isEmpty()) {
             log.warn("Dataset is empty, cannot find AFMethod.");
             return Optional.empty();

@@ -44,15 +44,28 @@ public class VersionControlConnector {
     private Repository repository;
     private Git git;
 
+    /**
+     * Constructs a new VersionControlConnector for Git operations.
+     * 
+     * @param projectName Name of the software project
+     * @param remoteUrl Remote Git repository URL
+     * @param localPath Local path where the repository will be cloned
+     */
     public VersionControlConnector(final String projectName, final String remoteUrl, final String localPath) {
         this.projectName = projectName;
         this.remoteUrl = remoteUrl;
         this.localPath = localPath;
     }
 
+    /**
+     * Clones the remote repository or opens an existing local repository.
+     * If the local repository doesn't exist, it performs a fresh clone.
+     * 
+     * @throws IOException If repository operations fail
+     */
     public void cloneOrOpenRepo() throws IOException {
         final File repoDir = new File(this.localPath);
-        log.debug("Initializing GitConnector for project '{}' at path '{}'", this.projectName, this.localPath);
+        log.debug("Initializing VersionControlConnector for project '{}' at path '{}'", this.projectName, this.localPath);
         try {
             this.git = Git.open(repoDir);
             this.repository = this.git.getRepository();
