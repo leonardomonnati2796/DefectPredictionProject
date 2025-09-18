@@ -43,6 +43,12 @@ public class BugTrackingConnector {
         log.debug("BugTrackingConnector initialized for project key: {}", projectKey);
     }
 
+    /**
+     * Fetches all project releases from JIRA that have been released and have a release date.
+     * 
+     * @return List of software releases sorted by date with assigned indices
+     * @throws IOException If JIRA API request fails
+     */
     public List<SoftwareRelease> getProjectReleases() throws IOException {
         log.info("Fetching project releases from JIRA for project {}...", projectKey);
         final String url = String.format("%s/rest/api/2/project/%s/versions", JIRA_URL, projectKey);
@@ -72,6 +78,13 @@ public class BugTrackingConnector {
         return indexedReleases;
     }
 
+    /**
+     * Fetches all bug tickets from JIRA that are resolved/closed with status Fixed.
+     * Uses pagination to handle large result sets.
+     * 
+     * @return List of bug reports
+     * @throws IOException If JIRA API request fails
+     */
     public List<BugReport> getBugTickets() throws IOException {
         log.info("Fetching bug tickets from JIRA for project {} (this may take a while)...", projectKey);
         final List<BugReport> tickets = new ArrayList<>();
@@ -111,6 +124,12 @@ public class BugTrackingConnector {
         return tickets;
     }
 
+    /**
+     * Parses a JIRA issue JSON object into a BugReport object.
+     * 
+     * @param issueJson The JSON object representing a JIRA issue
+     * @return Optional containing the parsed BugReport or empty if parsing fails
+     */
     private Optional<BugReport> parseTicketFromJson(final JSONObject issueJson) {
         try {
             final String key = issueJson.getString("key");
@@ -140,6 +159,13 @@ public class BugTrackingConnector {
         }
     }
 
+    /**
+     * Sends an HTTP GET request to the specified URL and returns the response body.
+     * 
+     * @param url The URL to send the request to
+     * @return The response body as a string
+     * @throws IOException If the HTTP request fails
+     */
     private String sendGetRequest(final String url) throws IOException {
         log.debug("Sending HTTP GET request to: {}", url);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {

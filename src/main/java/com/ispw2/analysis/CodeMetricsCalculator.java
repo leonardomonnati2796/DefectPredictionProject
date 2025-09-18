@@ -7,12 +7,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Utility class for calculating code quality metrics from Java method AST nodes.
+ * Provides static methods for computing various code metrics like cyclomatic complexity and code smells.
+ */
 public final class CodeMetricsCalculator {
 
     private CodeMetricsCalculator() {
         // Utility class with a private constructor
     }
     
+    /**
+     * Calculates all available code metrics for a given method declaration.
+     * 
+     * @param callable The method declaration to analyze
+     * @return Map containing all calculated metrics
+     */
     public static Map<String, Number> calculateAll(final CallableDeclaration<?> callable) {
         final Map<String, Number> features = new HashMap<>();
         features.put(CodeQualityMetrics.CODE_SMELLS, calculateCodeSmells(callable));
@@ -21,6 +31,13 @@ public final class CodeMetricsCalculator {
         return features;
     }
 
+    /**
+     * Calculates the number of code smells present in a method.
+     * Detects common code smells like long methods, too many parameters, and high complexity.
+     * 
+     * @param callable The method declaration to analyze
+     * @return The number of code smells found
+     */
     public static int calculateCodeSmells(final CallableDeclaration<?> callable) {
         // Simple code smell detection based on method characteristics
         int codeSmells = 0;
@@ -41,6 +58,12 @@ public final class CodeMetricsCalculator {
         return codeSmells;
     }
 
+    /**
+     * Calculates the cyclomatic complexity of a method by counting decision points.
+     * 
+     * @param callable The method declaration to analyze
+     * @return The cyclomatic complexity value
+     */
     public static int calculateCyclomaticComplexity(final CallableDeclaration<?> callable) {
         final AtomicInteger complexity = new AtomicInteger(1);
         callable.walk(node -> {

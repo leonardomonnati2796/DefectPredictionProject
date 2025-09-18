@@ -43,12 +43,25 @@ public class DatasetPreprocessor {
     
     private static final String REMOVE_INDICES = "1-3";
 
+    /**
+     * Constructs a new DatasetPreprocessor for converting CSV data to ARFF format.
+     * 
+     * @param config Configuration manager with system settings
+     * @param inputCsvPath Path to the input CSV file
+     * @param outputArffPath Path where the processed ARFF file will be saved
+     */
     public DatasetPreprocessor(ConfigurationManager config, final String inputCsvPath, final String outputArffPath) {
         this.config = config;
         this.inputCsvPath = inputCsvPath;
         this.outputArffPath = outputArffPath;
     }
 
+    /**
+     * Processes the CSV data through multiple preprocessing steps including
+     * attribute removal, missing value imputation, normalization, feature selection, and format conversion.
+     * 
+     * @throws Exception If any preprocessing step fails
+     */
     public void processData() throws Exception {
         log.info("Starting data preprocessing for {}...", this.inputCsvPath);
         final Instances rawData = loadCsvManually(this.inputCsvPath);
@@ -89,6 +102,13 @@ public class DatasetPreprocessor {
         log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numAttributes(), finalData.numInstances());
     }
 
+    /**
+     * Loads CSV data manually and converts it to Weka Instances format.
+     * 
+     * @param csvPath Path to the CSV file to load
+     * @return Instances object containing the loaded data
+     * @throws IOException If file reading fails
+     */
     private Instances loadCsvManually(final String csvPath) throws IOException {
         Locale.setDefault(Locale.US);
         final CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();
@@ -112,6 +132,12 @@ public class DatasetPreprocessor {
         }
     }
 
+    /**
+     * Defines Weka attributes based on CSV headers, setting appropriate data types.
+     * 
+     * @param headers List of column headers from the CSV file
+     * @return List of Weka Attribute objects
+     */
     private ArrayList<Attribute> defineWekaAttributes(final List<String> headers) {
         final ArrayList<Attribute> attributes = new ArrayList<>();
         for (final String header : headers) {
@@ -132,6 +158,13 @@ public class DatasetPreprocessor {
         return attributes;
     }
 
+    /**
+     * Populates a Weka instance with data from a CSV record, handling different data types.
+     * 
+     * @param instance The Weka instance to populate
+     * @param attribute The attribute being set
+     * @param value The string value from the CSV record
+     */
     private void populateWekaInstance(final DenseInstance instance, final Attribute attribute, final String value) {
         if (value == null || value.isEmpty()) {
             instance.setMissing(attribute);
@@ -148,6 +181,13 @@ public class DatasetPreprocessor {
         }
     }
 
+    /**
+     * Saves the processed data to an ARFF file.
+     * 
+     * @param data The processed Instances data to save
+     * @param filePath The path where the ARFF file should be saved
+     * @throws IOException If file writing fails
+     */
     private void saveToArff(final Instances data, final String filePath) throws IOException {
         final ArffSaver saver = new ArffSaver();
         saver.setInstances(data);

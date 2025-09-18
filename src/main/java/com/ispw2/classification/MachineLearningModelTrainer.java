@@ -96,6 +96,11 @@ public class MachineLearningModelTrainer {
         }
     }
 
+    /**
+     * Loads the ARFF dataset from the specified file path.
+     * 
+     * @throws IOException If loading the dataset fails
+     */
     private void loadData() throws IOException {
         log.debug("Loading data from ARFF file: {}", processedArffPath);
         final ArffLoader loader = new ArffLoader();
@@ -108,6 +113,11 @@ public class MachineLearningModelTrainer {
         }
     }
 
+    /**
+     * Checks if the loaded dataset is sufficient for classification tasks.
+     * 
+     * @return true if the dataset is sufficient, false otherwise
+     */
     private boolean isDataSufficientForClassification() {
         log.debug("Checking if data is sufficient for classification...");
         if (this.data.numInstances() < NUM_FOLDS) {
@@ -125,6 +135,12 @@ public class MachineLearningModelTrainer {
         return true;
     }
 
+    /**
+     * Finds the best base classifier by evaluating multiple algorithms.
+     * 
+     * @return The best performing classifier
+     * @throws Exception If evaluation fails
+     */
     private Classifier findBestBaseClassifier() throws Exception {
         log.info("--- Evaluating base classifiers on the original (imbalanced) dataset ---");
         final List<Classifier> classifiers = Arrays.asList(new RandomForest(), new NaiveBayes(), new IBk());
@@ -168,6 +184,13 @@ public class MachineLearningModelTrainer {
         return bestClassifier;
     }
 
+    /**
+     * Evaluates a classifier using cross-validation with multiple repeats.
+     * 
+     * @param classifier The classifier to evaluate
+     * @return The evaluation results
+     * @throws Exception If evaluation fails
+     */
     private Evaluation evaluateModel(final Classifier classifier) throws Exception {
         log.debug("Starting evaluation for {} with {} repeats of {}-fold cross-validation.", classifier.getClass().getSimpleName(), NUM_REPEATS, NUM_FOLDS);
         final Evaluation eval = new Evaluation(this.data);
@@ -180,6 +203,13 @@ public class MachineLearningModelTrainer {
         return eval;
     }
     
+    /**
+     * Tunes hyperparameters for the given base classifier using cross-validation.
+     * 
+     * @param baseClassifier The classifier to tune
+     * @return The tuned classifier
+     * @throws Exception If tuning fails
+     */
     private Classifier tuneClassifier(final Classifier baseClassifier) throws Exception {
         if (log.isInfoEnabled()) {
             log.info("--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());

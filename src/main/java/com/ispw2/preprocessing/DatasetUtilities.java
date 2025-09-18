@@ -18,12 +18,23 @@ import java.io.Reader;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Utility class for loading and working with datasets in various formats.
+ * Provides static methods for loading ARFF files and reading CSV data.
+ */
 public final class DatasetUtilities {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetUtilities.class);
 
     private DatasetUtilities() {}
 
+    /**
+     * Loads an ARFF file and returns it as a Weka Instances object.
+     * 
+     * @param filePath Path to the ARFF file to load
+     * @return Instances object containing the loaded data
+     * @throws IOException If file loading fails
+     */
     public static Instances loadArff(final String filePath) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Loading ARFF file from {}...", filePath);
@@ -37,6 +48,13 @@ public final class DatasetUtilities {
         return data;
     }
 
+    /**
+     * Reads a CSV file and returns a list of CSV records.
+     * 
+     * @param filePath Path to the CSV file to read
+     * @return List of CSV records
+     * @throws IOException If file reading fails
+     */
     public static List<CSVRecord> readCsv(final String filePath) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Reading CSV file from {}...", filePath);
@@ -51,6 +69,13 @@ public final class DatasetUtilities {
         }
     }
 
+    /**
+     * Counts the number of instances predicted as defective by a classifier.
+     * 
+     * @param model The trained classifier to use for prediction
+     * @param data The dataset to classify
+     * @return Number of instances predicted as defective
+     */
     public static int countDefective(final Classifier model, final Instances data) {
         log.debug("Counting PREDICTED defective instances...");
         int defectiveCount = 0;
@@ -76,6 +101,12 @@ public final class DatasetUtilities {
         return defectiveCount;
     }
 
+    /**
+     * Counts the number of instances that are actually defective (ground truth).
+     * 
+     * @param data The dataset to analyze
+     * @return Number of instances that are actually defective
+     */
     public static int countActualDefective(Instances data) {
         log.debug("Counting ACTUAL defective instances...");
         int defectiveCount = 0;
@@ -97,6 +128,12 @@ public final class DatasetUtilities {
         return defectiveCount;
     }
     
+    /**
+     * Finds the index of the "buggy" class value in a class attribute.
+     * 
+     * @param classAttribute The class attribute to search in
+     * @return Optional containing the buggy class index or empty if not found
+     */
     private static Optional<Integer> findBuggyClassIndex(Attribute classAttribute) {
         int index = classAttribute.indexOfValue("yes");
         if (index != -1) {
@@ -109,6 +146,15 @@ public final class DatasetUtilities {
         return Optional.empty();
     }
     
+    /**
+     * Filters instances based on a numeric attribute condition.
+     * 
+     * @param data The dataset to filter
+     * @param attributeName Name of the attribute to filter on
+     * @param operator The comparison operator (">", "<=", etc.)
+     * @param value The value to compare against
+     * @return Filtered dataset containing only instances that meet the condition
+     */
     public static Instances filterInstances(final Instances data, final String attributeName, final String operator, final double value) {
         if (log.isDebugEnabled()) {
             log.debug("Filtering {} instances where attribute '{}' {} {}...", data.numInstances(), attributeName, operator, value);

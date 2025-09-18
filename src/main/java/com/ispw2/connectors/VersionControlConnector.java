@@ -89,6 +89,10 @@ public class VersionControlConnector {
         }
     }
 
+    /**
+     * Cleans up the local repository by closing Git instance and deleting the directory.
+     * This method should be called when the connector is no longer needed.
+     */
     public void cleanupRepo() {
         if (this.git != null) {
             this.git.close();
@@ -107,6 +111,13 @@ public class VersionControlConnector {
         }
     }
     
+    /**
+     * Maps JIRA releases to their corresponding Git commits by matching release names with Git tags.
+     * 
+     * @param releases List of software releases from JIRA
+     * @return Map of release names to their corresponding Git commits
+     * @throws IOException If Git operations fail
+     */
     public Map<String, RevCommit> getReleaseCommits(final List<SoftwareRelease> releases) throws IOException {
         log.debug("Mapping Jira releases to Git commits...");
         final Map<String, RevCommit> releaseCommits = new HashMap<>();
@@ -134,6 +145,13 @@ public class VersionControlConnector {
         return releaseCommits;
     }
 
+    /**
+     * Finds a Git tag reference that matches the given release name using various patterns.
+     * 
+     * @param releaseName The release name to find a tag for
+     * @param tagMap Map of available Git tags
+     * @return The matching tag reference or null if not found
+     */
     private Ref findTagRef(String releaseName, Map<String, Ref> tagMap) {
         final List<String> tagPatterns = Arrays.asList(
             releaseName,
@@ -155,6 +173,13 @@ public class VersionControlConnector {
         return null;
     }
 
+    /**
+     * Maps bug tickets to the methods they affected by analyzing fix commits.
+     * 
+     * @param tickets List of bug reports to analyze
+     * @return Map of bug ticket keys to lists of affected method identifiers
+     * @throws IOException If Git operations fail
+     */
     public Map<String, List<String>> getBugToMethodsMap(final List<BugReport> tickets) throws IOException {
         log.info("Mapping bug tickets to affected methods...");
         final Map<String, List<String>> bugToMethods = new HashMap<>();
@@ -181,10 +206,24 @@ public class VersionControlConnector {
         return bugToMethods;
     }
     
+    /**
+     * Checks if a diff entry represents a modification to a Java file.
+     * 
+     * @param diff The diff entry to check
+     * @return true if the diff is a Java file modification, false otherwise
+     */
     private boolean isJavaFileModification(DiffEntry diff) {
         return diff.getChangeType() == DiffEntry.ChangeType.MODIFY && diff.getNewPath().endsWith(".java");
     }
 
+    /**
+     * Gets the list of methods that were modified in a specific diff entry.
+     * 
+     * @param diff The diff entry to analyze
+     * @param commit The commit containing the changes
+     * @return Set of modified method identifiers
+     * @throws IOException If file operations fail
+     */
     private Set<String> getModifiedMethods(final DiffEntry diff, final RevCommit commit) throws IOException {
         final Set<String> modifiedMethods = new HashSet<>();
         final String newPath = diff.getNewPath();
@@ -217,6 +256,12 @@ public class VersionControlConnector {
         return modifiedMethods;
     }
 
+    /**
+     * Finds and sets fix commit hashes for bug tickets by scanning commit messages.
+     * 
+     * @param tickets List of bug reports to find fix commits for
+     * @throws IOException If Git operations fail
+     */
     public void findAndSetFixCommits(final List<BugReport> tickets) throws IOException {
         log.info("Scanning commit history to find fix commits...");
         final Map<String, BugReport> ticketMap = new HashMap<>();
@@ -246,6 +291,14 @@ public class VersionControlConnector {
         log.info("Associated fix commits with {} tickets.", foundCount);
     }
 
+    /**
+     * Generates a diff between two commits.
+     * 
+     * @param commit1 The first commit
+     * @param commit2 The second commit
+     * @return List of diff entries representing the changes
+     * @throws IOException If diff generation fails
+     */
     private List<DiffEntry> getDiff(final RevCommit commit1, final RevCommit commit2) throws IOException {
         log.debug("Generating diff between {} and {}", commit1.getName(), commit2.getName());
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
@@ -261,6 +314,13 @@ public class VersionControlConnector {
         }
     }
 
+    /**
+     * Gets all Java files in a specific commit, excluding test files.
+     * 
+     * @param commitId The commit ID to get Java files for
+     * @return List of Java file paths
+     * @throws IOException If Git operations fail
+     */
     public List<String> getJavaFilesForCommit(final String commitId) throws IOException {
         log.debug("Listing all Java files for commit {}", commitId);
         final List<String> javaFiles = new ArrayList<>();
@@ -281,6 +341,14 @@ public class VersionControlConnector {
         return javaFiles;
     }
 
+    /**
+     * Gets the content of a file at a specific commit.
+     * 
+     * @param filePath The path to the file
+     * @param commitId The commit ID to get the file content from
+     * @return The file content as a string
+     * @throws IOException If file reading fails
+     */
     public String getFileContent(final String filePath, final String commitId) throws IOException {
         log.debug("Reading file content for '{}' at commit '{}'", filePath, commitId);
         final ObjectId objId = repository.resolve(commitId + ":" + filePath);
@@ -291,14 +359,30 @@ public class VersionControlConnector {
         return new String(repository.open(objId).getBytes(), StandardCharsets.UTF_8);
     }
     
+    /**
+     * Gets the Git instance for direct Git operations.
+     * 
+     * @return The Git instance
+     */
     public Git getGit() { 
         return git; 
     }
     
+    /**
+     * Gets the project name.
+     * 
+     * @return The project name
+     */
     public String getProjectName() {
         return this.projectName;
     }
 
+    /**
+     * Recursively deletes a directory and all its contents.
+     * 
+     * @param directory The directory to delete
+     * @return true if deletion was successful, false otherwise
+     */
     private boolean deleteDirectory(final File directory) {
         final File[] allContents = directory.listFiles();
         if (allContents != null) {

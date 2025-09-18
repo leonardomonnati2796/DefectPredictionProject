@@ -33,10 +33,22 @@ public class MethodAnalysisTracker {
 
     private static final String METHOD_KEY_SEPARATOR = "::";
 
+    /**
+     * Constructs a new MethodAnalysisTracker for analyzing methods across releases.
+     * 
+     * @param git Version control connector for Git operations
+     */
     public MethodAnalysisTracker(final VersionControlConnector git) {
         this.git = git;
     }
 
+    /**
+     * Gets all methods for a specific release commit with their calculated metrics.
+     * 
+     * @param releaseCommit The Git commit representing the release
+     * @return List of analyzed methods with their features
+     * @throws IOException If Git operations fail
+     */
     public List<AnalyzedMethod> getMethodsForRelease(final RevCommit releaseCommit) throws IOException {
         final String commitId = releaseCommit.getName();
         log.debug("Getting all methods for release commit: {}", commitId);
@@ -64,6 +76,15 @@ public class MethodAnalysisTracker {
         return currentMethods;
     }
 
+    /**
+     * Extracts all methods from a Java file and creates AnalyzedMethod objects.
+     * 
+     * @param file The file path to extract methods from
+     * @param commitId The Git commit ID
+     * @param currentMethods List to add extracted methods to
+     * @param methodAstMap Map to store method AST nodes
+     * @throws IOException If file reading fails
+     */
     private void extractMethodsFromFile(final String file, final String commitId, final List<AnalyzedMethod> currentMethods, final Map<AnalyzedMethod, CallableDeclaration<?>> methodAstMap) throws IOException {
         log.debug("Parsing file for methods: {}", file);
         final String content = git.getFileContent(file, commitId);
@@ -92,6 +113,13 @@ public class MethodAnalysisTracker {
         }
     }
 
+    /**
+     * Calculates all features for a method including static metrics and change history.
+     * 
+     * @param method The method to calculate features for
+     * @param callable The AST node representing the method
+     * @param releaseCommit The release commit for change history calculation
+     */
     private void calculateAllFeatures(final AnalyzedMethod method, final CallableDeclaration<?> callable, final RevCommit releaseCommit) {
         log.debug("Calculating all features for method: {}", method.signature());
         method.addAllFeatures(CodeMetricsCalculator.calculateAll(callable));
@@ -105,6 +133,15 @@ public class MethodAnalysisTracker {
         }
     }
 
+    /**
+     * Calculates change history features for a method by analyzing Git commit history.
+     * 
+     * @param trackedMethod The method to calculate change history for
+     * @param callable The AST node representing the method
+     * @param releaseCommit The release commit to analyze up to
+     * @return Map of change history features
+     * @throws IOException If Git operations fail
+     */
     private Map<String, Number> calculateChangeHistoryFeatures(final AnalyzedMethod trackedMethod, final CallableDeclaration<?> callable, final RevCommit releaseCommit) throws IOException {
         log.debug("Calculating change history for method '{}' in file {}...", trackedMethod.signature(), trackedMethod.filepath());
         final int methodStartLine = callable.getBegin().map(p -> p.line).orElse(-1);
@@ -130,6 +167,16 @@ public class MethodAnalysisTracker {
         return metrics.toMap();
     }
 
+    /**
+     * Checks if a method was touched in a specific commit by analyzing diff entries.
+     * 
+     * @param filePath The file path containing the method
+     * @param commit The commit to check
+     * @param methodStart The starting line number of the method
+     * @param methodEnd The ending line number of the method
+     * @param metrics The metrics object to update if method was touched
+     * @throws IOException If diff analysis fails
+     */
     private void isMethodTouchedInCommit(String filePath, RevCommit commit, int methodStart, int methodEnd, ChangeMetrics metrics) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             diffFormatter.setRepository(git.getGit().getRepository());
@@ -181,6 +228,11 @@ public class MethodAnalysisTracker {
         }
     }
 
+    /**
+     * Returns placeholder change features when change history calculation fails.
+     * 
+     * @return Map of placeholder change features with zero values
+     */
     private Map<String, Number> getPlaceholderChangeFeatures() {
         final Map<String, Number> features = new HashMap<>();
         features.put(CodeQualityMetrics.NR, 0);

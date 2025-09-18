@@ -129,6 +129,16 @@ public class ProjectDatasetBuilder {
         return csvData;
     }
 
+    /**
+     * Creates a CSV row for a specific method and release with all calculated metrics.
+     * 
+     * @param method The analyzed method to create a row for
+     * @param release The software release the method belongs to
+     * @param tickets List of all bug reports
+     * @param bugToMethodsMap Map linking bug keys to affected methods
+     * @param pMedian Proportion median for bug introduction calculation
+     * @return Array of strings representing the CSV row
+     */
     private String[] createCsvRow(final AnalyzedMethod method, final SoftwareRelease release, final List<BugReport> tickets, final Map<String, List<String>> bugToMethodsMap, final double pMedian) {
         final boolean isBuggy = isMethodBuggy(method, release, tickets, pMedian, bugToMethodsMap);
         final Map<String, Number> features = method.getFeatures();
@@ -150,6 +160,13 @@ public class ProjectDatasetBuilder {
         };
     }
 
+    /**
+     * Writes the CSV data to a file using the specified file path.
+     * 
+     * @param filePath The path where the CSV file should be written
+     * @param csvData List of string arrays representing CSV rows
+     * @throws IOException If writing to file fails
+     */
     private void writeToCsv(final String filePath, final List<String[]> csvData) throws IOException {
         final CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setQuoteMode(QuoteMode.ALL)
@@ -160,6 +177,16 @@ public class ProjectDatasetBuilder {
         }
     }
 
+    /**
+     * Determines if a method is buggy based on bug reports and version information.
+     * 
+     * @param method The method to check for bugginess
+     * @param currentRelease The current software release
+     * @param allTickets List of all bug reports
+     * @param pMedian Proportion median for bug introduction calculation
+     * @param bugToMethodsMap Map linking bug keys to affected methods
+     * @return true if the method is considered buggy, false otherwise
+     */
     private boolean isMethodBuggy(final AnalyzedMethod method, final SoftwareRelease currentRelease, final List<BugReport> allTickets, final double pMedian, final Map<String, List<String>> bugToMethodsMap) {
         final String methodKey = method.filepath() + METHOD_KEY_SEPARATOR + method.signature();
         
@@ -177,6 +204,13 @@ public class ProjectDatasetBuilder {
         return false;
     }
     
+    /**
+     * Calculates the introduction version index for a bug report using proportion median.
+     * 
+     * @param ticket The bug report to calculate introduction version for
+     * @param pMedian The proportion median coefficient
+     * @return The calculated introduction version index
+     */
     private int calculateIntroductionVersion(BugReport ticket, double pMedian) {
         int iv = ticket.getIntroductionVersionIndex();
         int fv = ticket.getFixedVersionIndex();
@@ -189,6 +223,12 @@ public class ProjectDatasetBuilder {
         return iv;
     }
 
+    /**
+     * Sets version indices for all bug tickets based on release information.
+     * 
+     * @param tickets List of bug reports to set version indices for
+     * @param releases List of software releases for index mapping
+     */
     private void setVersionIndices(final List<BugReport> tickets, final List<SoftwareRelease> releases) {
         final Map<String, Integer> releaseNameIndexMap = releases.stream().collect(Collectors.toMap(SoftwareRelease::name, SoftwareRelease::index));
         for (final BugReport ticket : tickets) {
@@ -204,6 +244,13 @@ public class ProjectDatasetBuilder {
         }
     }
 
+    /**
+     * Finds the release index for a given date by finding the latest release before or on that date.
+     * 
+     * @param date The date to find the release for
+     * @param releases List of software releases sorted by date
+     * @return The index of the appropriate release, or -1 if no release found
+     */
     private int findReleaseIndexForDate(final LocalDate date, final List<SoftwareRelease> releases) {
         for (final SoftwareRelease release : releases) {
             if (!date.isAfter(release.releaseDate())) return release.index();
@@ -211,6 +258,12 @@ public class ProjectDatasetBuilder {
         return releases.isEmpty() ? -1 : releases.get(releases.size() - 1).index();
     }
 
+    /**
+     * Calculates the proportion coefficient used for bug introduction version estimation.
+     * 
+     * @param tickets List of bug reports to calculate the coefficient from
+     * @return The calculated proportion median coefficient
+     */
     private double calculateProportionCoefficient(final List<BugReport> tickets) {
         final List<Double> pValues = tickets.stream()
                 .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())

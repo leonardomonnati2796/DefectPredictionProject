@@ -9,6 +9,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+/**
+ * Manages configuration settings for the defect prediction system.
+ * Loads configuration from properties files and provides access to various system parameters.
+ */
 public class ConfigurationManager {
     private static final Logger log = LoggerFactory.getLogger(ConfigurationManager.class);
     private static final String CONFIG_FILE = "/config.properties";
@@ -21,6 +25,10 @@ public class ConfigurationManager {
     
     private final Properties properties;
 
+    /**
+     * Constructs a new ConfigurationManager and loads configuration from the properties file.
+     * Initializes the configuration system and loads all available settings.
+     */
     public ConfigurationManager() {
         log.debug("Initializing ConfigurationManager and loading properties...");
         properties = new Properties();
@@ -36,24 +44,49 @@ public class ConfigurationManager {
         }
     }
 
+    /**
+     * Gets the percentage of releases to analyze from the configuration.
+     * 
+     * @return The release cutoff percentage (default: 0.5)
+     */
     public double getReleaseCutoffPercentage() {
         return Double.parseDouble(properties.getProperty(KEY_RELEASE_CUTOFF, "0.5"));
     }
 
+    /**
+     * Gets the list of actionable features from the configuration.
+     * 
+     * @return List of actionable feature names (default: "LOC,CyclomaticComplexity")
+     */
     public List<String> getActionableFeatures() {
         final String features = properties.getProperty(KEY_ACTIONABLE_FEATURES, "LOC,CyclomaticComplexity");
         return Arrays.asList(features.split(","));
     }
     
+    /**
+     * Gets the number of features to select during preprocessing.
+     * 
+     * @return The number of features to select (default: 5)
+     */
     public int getFeaturesToSelect() {
         return Integer.parseInt(properties.getProperty(KEY_FEATURES_TO_SELECT, "5"));
     }
     
+    /**
+     * Gets the IBk (k-Nearest Neighbors) tuning parameters from the configuration.
+     * 
+     * @return Array of IBk tuning parameters (default: "K 1 10 1")
+     */
     public String[] getIbkTuningParams() {
         final String range = properties.getProperty(KEY_IBK_K_RANGE, "1 10 1");
         return ("K " + range).split(" ");
     }
     
+    /**
+     * Gets the RandomForest tuning parameters from the configuration.
+     * 
+     * @return Array of RandomForest tuning parameters (default: "I 10 100 10")
+     */
     public String[] getRandomForestTuningParams() {
         final String range = properties.getProperty(KEY_RANDOMFOREST_ITERATIONS, "10 100 10");
         return ("I " + range).split(" ");

@@ -137,6 +137,13 @@ public class CodeQualityAnalyzer {
         }
     }
 
+    /**
+     * Finds the top actionable feature using Information Gain attribute evaluation.
+     * 
+     * @param data The dataset to analyze for feature ranking
+     * @return The name of the most actionable feature
+     * @throws Exception If feature selection fails
+     */
     private String findTopActionableFeature(final Instances data) throws Exception {
         log.info("[Milestone 2, Step 4 & 5] Finding Top Actionable Feature...");
         final AttributeSelection selector = new AttributeSelection();
@@ -167,6 +174,13 @@ public class CodeQualityAnalyzer {
         return fallbackFeature;
     }
     
+    /**
+     * Finds the target method record (AFMethod) with the highest value of the actionable feature.
+     * 
+     * @param aFeature The actionable feature to search for
+     * @return Optional containing the target method record if found
+     * @throws IOException If CSV reading fails
+     */
     private Optional<CSVRecord> findTargetMethodRecord(final String aFeature) throws IOException {
         log.info("[Milestone 2, Step 6] Identifying Target Method (AFMethod)...");
         log.debug("Searching for target method using AFeature: {}", aFeature);
@@ -206,6 +220,11 @@ public class CodeQualityAnalyzer {
         return targetRecord;
     }
     
+    /**
+     * Saves the source code of the target method to files for refactoring analysis.
+     * 
+     * @param methodRecord The CSV record containing the method information
+     */
     private void saveMethodSourceToFile(final CSVRecord methodRecord) {
         log.info("[Milestone 2, Step 7] Saving AFMethod source code...");
         final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
@@ -252,6 +271,12 @@ public class CodeQualityAnalyzer {
         }
     }
 
+    /**
+     * Handles the actual file saving operations for both original and refactored method files.
+     * 
+     * @param methodSource The source code of the method to save
+     * @throws IOException If file operations fail
+     */
     private void handleFileSaving(String methodSource) throws IOException {
         final Path datasetsPath = Paths.get(originalCsvPath).getParent();
         log.debug("Preparing to save files in and alongside directory: {}", datasetsPath);
