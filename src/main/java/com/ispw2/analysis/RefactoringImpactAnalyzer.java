@@ -69,10 +69,8 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
         } catch (final ClassifierTrainingException e) {
-            log.error("Classifier training failed during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
             // Attempt to handle the error with recovery strategy
-            log.warn("Attempting to recover from classifier training failure");
+            log.warn("Attempting to recover from classifier training failure for feature '{}'", this.aFeatureName);
             try {
                 // Try to use a simpler classifier as fallback
                 log.info("Attempting to use fallback classifier approach");
@@ -87,10 +85,8 @@ public class RefactoringImpactAnalyzer {
             throw new IOException("Simulation aborted: Classifier training failed for feature '" + 
                     this.aFeatureName + "' - " + e.getMessage(), e);
         } catch (final DatasetCreationException e) {
-            log.error("Dataset creation failed during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
             // Attempt to handle the error gracefully
-            log.warn("Attempting to recover from dataset creation failure");
+            log.warn("Attempting to recover from dataset creation failure for feature '{}'", this.aFeatureName);
             try {
                 // Try to create a minimal dataset for analysis
                 log.info("Creating fallback dataset for limited analysis");
@@ -102,10 +98,8 @@ public class RefactoringImpactAnalyzer {
             throw new IOException("Simulation aborted: Dataset creation failed for feature '" + 
                     this.aFeatureName + "' - " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Unexpected error during simulation for feature '{}': {}", 
-                    this.aFeatureName, e.getMessage(), e);
             // Log the full context and abort
-            log.error("Simulation cannot continue due to unexpected error");
+            log.error("Simulation cannot continue due to unexpected error for feature '{}'", this.aFeatureName);
             throw new IOException("Simulation aborted: Unexpected error for feature '" + 
                     this.aFeatureName + "' - " + e.getMessage(), e);
         }
@@ -124,10 +118,9 @@ public class RefactoringImpactAnalyzer {
             
             return bClassifierA;
         } catch (final ReflectiveOperationException e) {
-            log.error("Failed to create new classifier instance of type {}: {}", 
-                    bClassifier.getClass().getSimpleName(), e.getMessage(), e);
             // Attempt to handle the reflection error
-            log.warn("Attempting to handle reflection error for classifier creation");
+            log.warn("Attempting to handle reflection error for classifier creation of type {}", 
+                    bClassifier.getClass().getSimpleName());
             try {
                 // Try alternative instantiation approach
                 log.info("Attempting alternative classifier instantiation method");
@@ -138,7 +131,6 @@ public class RefactoringImpactAnalyzer {
             log.error("Cannot proceed with simulation without a working classifier");
             throw new ClassifierTrainingException("Cannot instantiate classifier for simulation: " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Failed to train classifier on dataset A: {}", e.getMessage(), e);
             // Attempt to handle training error
             log.warn("Attempting to handle classifier training error");
             try {
@@ -169,9 +161,8 @@ public class RefactoringImpactAnalyzer {
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
-            log.error("Dataset creation failed for feature '{}': {}", featureNameToModify, e.getMessage(), e);
             // Attempt to handle the error with alternative approach
-            log.warn("Attempting alternative dataset creation approach");
+            log.warn("Attempting alternative dataset creation approach for feature '{}'", featureNameToModify);
             try {
                 // Try to create a simplified version of the dataset
                 log.info("Creating simplified dataset B for feature '{}'", featureNameToModify);
@@ -183,9 +174,8 @@ public class RefactoringImpactAnalyzer {
             throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
                     featureNameToModify + "': " + e.getMessage(), e);
         } catch (final Exception e) {
-            log.error("Failed to create synthetic dataset B for feature '{}': {}", featureNameToModify, e.getMessage(), e);
             // Attempt to handle the general error
-            log.warn("Attempting to handle general dataset creation error");
+            log.warn("Attempting to handle general dataset creation error for feature '{}'", featureNameToModify);
             try {
                 // Try alternative dataset creation approach
                 log.info("Attempting alternative dataset creation method for feature '{}'", featureNameToModify);
