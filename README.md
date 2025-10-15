@@ -73,8 +73,8 @@ DefectPredictionProject/
 
 ```bash
 # Clona il repository
-git clone <repository-url>
-cd DefectPredictionProjectFinal/DefectPredictionProject
+git clone https://github.com/leonardomonnati2796/DefectPredictionProject.git
+cd DefectPredictionProject/DefectPredictionProject
 
 # Compila il progetto
 mvn clean compile
@@ -122,7 +122,7 @@ jira.timeout=30000
 
 ## Autori
 
-- **Studente**: [Nome Studente]
+- **Studente**: Leonardo Monnati
 - **Corso**: Ingegneria del Software II
 - **Anno Accademico**: 2024/2025
 
@@ -142,4 +142,4 @@ I contributi sono benvenuti! Per favore:
 
 ## Contatti
 
-Per domande o supporto, contatta [email@example.com]
+Per domande o supporto, contatta [leonardomonnati2796@gmail.com]
