@@ -1,0 +1,266 @@
+package com.ispw2.classification;
+
+import com.ispw2.ConfigurationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import weka.classifiers.Classifier;
+import weka.classifiers.Evaluation;
+import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.lazy.IBk;
+import weka.classifiers.meta.CVParameterSelection;
+import weka.classifiers.trees.RandomForest;
+import weka.core.Attribute;
+import weka.core.Instances;
+import weka.core.SerializationHelper;
+import weka.core.converters.ArffLoader;
+import java.io.File;
+import java.io.IOException;
+import java.security.SecureRandom; // Import per il generatore sicuro
+import java.util.Arrays;
+import java.util.List;
+
+public class MachineLearningModelTrainer {
+    private static final Logger log = LoggerFactory.getLogger(MachineLearningModelTrainer.class);
+    private static final int NUM_FOLDS = 10;
+    private static final int NUM_REPEATS = 10;
+    
+    private static final String TABLE_SEPARATOR = "----------------------------------------------------------------------";
+    private static final String TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
+    private static final String TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
+
+    private final ConfigurationManager config;
+    private final String processedArffPath;
+    private final String modelPath;
+    private Instances data;
+    private boolean usingBalancedDataset;
+
+    /**
+     * Constructs a new MachineLearningModelTrainer for training and evaluating classifiers.
+     * 
+     * @param config Configuration manager with system settings
+     * @param processedArffPath Path to the processed ARFF dataset
+     * @param modelPath Path where the best trained model will be saved
+     */
+    public MachineLearningModelTrainer(ConfigurationManager config, final String processedArffPath, final String modelPath) {
+        this.config = config;
+        this.processedArffPath = processedArffPath;
+        this.modelPath = modelPath;
+    }
+    
+    /**
+     * Gets the best trained classifier, either by loading from file or training a new one.
+     * Evaluates multiple base classifiers (RandomForest, NaiveBayes, IBk) and selects
+     * the best one based on AUC score, then applies hyperparameter tuning.
+     * 
+     * @return The best trained classifier
+     * @throws IOException If training or loading fails
+     */
+    public Classifier getBestClassifier() throws IOException {
+        log.info("Checking for model file at path: {}", modelPath);
+        final File modelFile = new File(modelPath);
+        
+        // Check if we should force retraining due to dataset changes
+        final String balancedPath = processedArffPath.replace(".arff", "_balanced.arff");
+        final File balancedFile = new File(balancedPath);
+        final boolean usingBalancedDataset = balancedFile.exists();
+        
+        if (modelFile.exists() && modelFile.length() > 0) {
+            log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file: {}", modelPath);
+            try {
+                return (Classifier) SerializationHelper.read(modelPath);
+            } catch (Exception e) {
+                throw new IOException("Failed to load the saved model.", e);
+            }
+        }
+        
+        log.info("\n[Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...");
+        loadData();
+        
+        if (!isDataSufficientForClassification()) {
+            log.warn("Data is not sufficient for classification. Returning default RandomForest classifier.");
+            return new RandomForest();
+        }
+
+        try {
+            log.debug("Starting base classifier evaluation...");
+            final Classifier bestBaseClassifier = findBestBaseClassifier();
+            
+            if (bestBaseClassifier == null) {
+                log.error("No base classifier could be selected. Aborting.");
+                throw new IOException("Classifier selection failed.");
+            }
+            
+            log.debug("Starting hyperparameter tuning for the best classifier...");
+            final Classifier tunedClassifier = tuneClassifier(bestBaseClassifier);
+            
+            log.info("\nSaving tuned model to: {}", modelPath);
+            SerializationHelper.write(modelPath, tunedClassifier);
+
+            return tunedClassifier;
+        } catch (Exception e) {
+            throw new IOException("An error occurred during classifier training or tuning.", e);
+        }
+    }
+
+    /**
+     * Loads the ARFF dataset from the specified file path.
+     * Prefers balanced dataset if available to address class imbalance.
+     * 
+     * @throws IOException If loading the dataset fails
+     */
+    private void loadData() throws IOException {
+        // Check if balanced dataset exists and use it preferentially
+        final String balancedPath = processedArffPath.replace(".arff", "_balanced.arff");
+        final File balancedFile = new File(balancedPath);
+        final String dataPathToUse = balancedFile.exists() ? balancedPath : processedArffPath;
+        this.usingBalancedDataset = balancedFile.exists();
+        
+        if (balancedFile.exists()) {
+            log.info("Using balanced dataset: {}", balancedPath);
+        } else {
+            log.debug("Using original dataset: {}", processedArffPath);
+        }
+        
+        log.debug("Loading data from ARFF file: {}", dataPathToUse);
+        final ArffLoader loader = new ArffLoader();
+        loader.setSource(new File(dataPathToUse));
+        this.data = loader.getDataSet();
+        this.data.setClassIndex(this.data.numAttributes() - 1);
+        
+        if (log.isInfoEnabled()) {
+            log.info("Loaded {} instances from {}", this.data.numInstances(), dataPathToUse);
+        }
+    }
+
+    /**
+     * Checks if the loaded dataset is sufficient for classification tasks.
+     * 
+     * @return true if the dataset is sufficient, false otherwise
+     */
+    private boolean isDataSufficientForClassification() {
+        log.debug("Checking if data is sufficient for classification...");
+        if (this.data.numInstances() < NUM_FOLDS) {
+            log.error("The dataset has fewer than {} instances ({}), not enough for {}-fold cross-validation. Skipping evaluation.", NUM_FOLDS, this.data.numInstances(), NUM_FOLDS);
+            return false;
+        }
+        final Attribute classAttribute = this.data.classAttribute();
+        if (classAttribute.numValues() < 2) {
+            if (log.isErrorEnabled()) {
+                log.error("The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
+            }
+            return false;
+        }
+        log.debug("Data is sufficient.");
+        return true;
+    }
+
+    /**
+     * Finds the best base classifier by evaluating multiple algorithms.
+     * 
+     * @return The best performing classifier
+     * @throws Exception If evaluation fails
+     */
+    private Classifier findBestBaseClassifier() throws Exception {
+        log.info("--- Evaluating base classifiers on the {} dataset ---", usingBalancedDataset ? "balanced" : "original (imbalanced)");
+        final List<Classifier> classifiers = Arrays.asList(new RandomForest(), new NaiveBayes(), new IBk());
+        Classifier bestClassifier = null;
+        double bestAuc = 0.0;
+        
+        if (log.isInfoEnabled()) {
+            log.info(TABLE_SEPARATOR);
+            log.info(String.format(TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
+            log.info(TABLE_SEPARATOR);
+        }
+
+        for (final Classifier classifier : classifiers) {
+            if (log.isDebugEnabled()){
+                log.debug("Evaluating classifier: {}", classifier.getClass().getSimpleName());
+            }
+
+            final Evaluation eval = evaluateModel(classifier);
+            final double auc = eval.weightedAreaUnderROC();
+            final double precision = eval.weightedPrecision();
+            final double recall = eval.weightedRecall();
+            final double kappa = eval.kappa();
+            
+            if (log.isInfoEnabled()) {
+                log.info(String.format(TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
+            }
+
+            if (auc > bestAuc) {
+                if (log.isDebugEnabled()){
+                    log.debug("New best classifier found: {} with AUC = {}", classifier.getClass().getSimpleName(), String.format("%.3f", auc));
+                }
+                bestAuc = auc;
+                bestClassifier = classifier;
+            }
+        }
+        
+        log.info(TABLE_SEPARATOR);
+        if (bestClassifier != null && log.isInfoEnabled()) {
+            log.info("Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
+        }
+        return bestClassifier;
+    }
+
+    /**
+     * Evaluates a classifier using cross-validation with multiple repeats.
+     * 
+     * @param classifier The classifier to evaluate
+     * @return The evaluation results
+     * @throws Exception If evaluation fails
+     */
+    private Evaluation evaluateModel(final Classifier classifier) throws Exception {
+        log.debug("Starting evaluation for {} with {} repeats of {}-fold cross-validation.", classifier.getClass().getSimpleName(), NUM_REPEATS, NUM_FOLDS);
+        final Evaluation eval = new Evaluation(this.data);
+        for (int i = 0; i < NUM_REPEATS; i++) {
+            if (log.isDebugEnabled()){
+                log.debug("Running cross-validation repeat {}/{} with random seed {}.", i + 1, NUM_REPEATS, i);
+            }
+            eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new SecureRandom());
+        }
+        return eval;
+    }
+    
+    /**
+     * Tunes hyperparameters for the given base classifier using cross-validation.
+     * 
+     * @param baseClassifier The classifier to tune
+     * @return The tuned classifier
+     * @throws Exception If tuning fails
+     */
+    private Classifier tuneClassifier(final Classifier baseClassifier) throws Exception {
+        if (log.isInfoEnabled()) {
+            log.info("--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());
+        }
+        
+        if (!(baseClassifier instanceof RandomForest) && !(baseClassifier instanceof IBk)) {
+            if (log.isInfoEnabled()) {
+                log.info("No parameters to tune for {}.", baseClassifier.getClass().getSimpleName());
+            }
+            baseClassifier.buildClassifier(data);
+            return baseClassifier;
+        }
+
+        final CVParameterSelection tuner = new CVParameterSelection();
+        tuner.setClassifier(baseClassifier);
+        tuner.setNumFolds(NUM_FOLDS);
+
+        if (baseClassifier instanceof RandomForest) {
+            final String[] params = config.getRandomForestTuningParams();
+            log.debug("Tuning RandomForest with CVParameter: {}", (Object) params);
+            tuner.addCVParameter(String.join(" ", params));
+        } else if (baseClassifier instanceof IBk) {
+            final String[] params = config.getIbkTuningParams();
+            log.debug("Tuning IBk with CVParameter: {}", (Object) params);
+            tuner.addCVParameter(String.join(" ", params));
+        }
+        
+        log.debug("Building classifier with tuner...");
+        tuner.buildClassifier(data);
+        if (log.isInfoEnabled()) {
+            log.info("Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));
+        }
+        return tuner;
+    }
+}

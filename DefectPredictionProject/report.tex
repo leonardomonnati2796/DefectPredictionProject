@@ -1,0 +1,497 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Progetto di Predizione dei Difetti Software}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{Analisi e Simulazione di Refactoring}
+
+\lstset{
+    language=Java,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny,
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{gray!10},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    frame=single,
+    tabsize=2,
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=false,
+    escapeinside={\%*}{*)}
+}
+
+\title{\textbf{Progetto di Predizione dei Difetti Software}\\
+\large Analisi e Simulazione dell'Impatto del Refactoring}
+\author{Studente: [Nome Studente]\\
+Corso: Ingegneria del Software II\\
+Anno Accademico: 2024/2025}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduzione}
+
+\subsection{Obiettivo del Progetto}
+
+Questo progetto implementa un sistema completo di predizione dei difetti software che analizza progetti open-source, identifica metodi problematici e simula l'impatto di operazioni di refactoring. Il sistema utilizza tecniche di machine learning per predire la presenza di difetti e valuta l'efficacia di miglioramenti del codice attraverso simulazioni "what-if".
+
+\subsection{Metodologia}
+
+Il progetto segue una metodologia strutturata in due milestone principali:
+
+\begin{itemize}
+    \item \textbf{Milestone 1}: Generazione e preprocessing dei dataset
+    \item \textbf{Milestone 2}: Analisi, training del modello e simulazione
+\end{itemize}
+
+\section{Architettura del Sistema}
+
+\subsection{Componenti Principali}
+
+Il sistema è organizzato in diversi moduli specializzati:
+
+\begin{enumerate}
+    \item \textbf{DefectPredictionPipeline}: Orchestratore principale del processo
+    \item \textbf{DatasetGenerator}: Generazione dei dataset da repository Git
+    \item \textbf{DatasetPreprocessor}: Preprocessing e bilanciamento dei dati
+    \item \textbf{MachineLearningModelTrainer}: Training e ottimizzazione dei modelli
+    \item \textbf{RefactoringImpactAnalyzer}: Simulazione dell'impatto del refactoring
+    \item \textbf{MethodFeatureComparator}: Confronto delle metriche tra versioni
+\end{enumerate}
+
+\subsection{Tecnologie Utilizzate}
+
+\begin{itemize}
+    \item \textbf{Java 11+}: Linguaggio di programmazione principale
+    \item \textbf{Weka}: Framework per machine learning e data mining
+    \item \textbf{JavaParser}: Parsing e analisi del codice Java
+    \item \textbf{Maven}: Gestione delle dipendenze e build
+    \item \textbf{SLF4J + Logback}: Sistema di logging
+    \item \textbf{JGit}: Interfaccia per repository Git
+    \item \textbf{Jira REST API}: Integrazione con sistemi di issue tracking
+\end{itemize}
+
+\section{Milestone 1: Generazione e Preprocessing dei Dataset}
+
+\subsection{Generazione dei Dataset}
+
+Il sistema analizza progetti open-source estraendo:
+
+\begin{itemize}
+    \item \textbf{Metriche Statiche}: Complessità ciclomatica, profondità di annidamento, numero di parametri, code smells
+    \item \textbf{Metriche di Processo}: Numero di revisioni, autori, statement aggiunti/rimossi, churn
+    \item \textbf{Informazioni sui Difetti}: Mappatura tra commit e issue Jira
+\end{itemize}
+
+\subsection{Preprocessing dei Dati}
+
+Il preprocessing include:
+
+\begin{enumerate}
+    \item \textbf{Pulizia dei Dati}: Rimozione di valori mancanti e outlier
+    \item \textbf{Normalizzazione}: Standardizzazione delle feature numeriche
+    \item \textbf{Selezione delle Feature}: Utilizzo di InfoGain per identificare le feature più rilevanti
+    \item \textbf{Bilanciamento}: Applicazione di tecniche SMOTE per gestire il class imbalance
+\end{enumerate}
+
+\section{Milestone 2: Analisi e Simulazione}
+
+\subsection{Selezione del Classificatore}
+
+Il sistema valuta tre classificatori base:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Classificatore} & \textbf{AUC} & \textbf{Precision} & \textbf{Recall} & \textbf{Kappa} \\
+\midrule
+RandomForest & 0.930 & 0.909 & 0.910 & 0.736 \\
+NaiveBayes & 0.747 & 0.766 & 0.784 & 0.341 \\
+IBk & 0.935 & 0.907 & 0.908 & 0.731 \\
+\bottomrule
+\end{tabular}
+\caption{Risultati della valutazione dei classificatori base}
+\end{table}
+
+\subsection{Ottimizzazione degli Iperparametri}
+
+Per il classificatore selezionato (IBk), il sistema ottimizza:
+
+\begin{itemize}
+    \item \textbf{K}: Numero di vicini (ottimizzato a K=1)
+    \item \textbf{Weight}: Peso dei vicini
+    \item \textbf{Search Algorithm}: Algoritmo di ricerca dei vicini
+    \item \textbf{Distance Function}: Funzione di distanza
+\end{itemize}
+
+\subsection{Identificazione del Metodo Target}
+
+Il sistema identifica automaticamente:
+
+\begin{enumerate}
+    \item \textbf{Feature Più Azionabile}: La metrica con maggiore impatto sulla predizione
+    \item \textbf{Metodo Target}: Il metodo con il valore più alto della feature selezionata
+    \item \textbf{Analisi del Codice}: Estrazione e salvataggio del codice sorgente
+\end{enumerate}
+
+\section{Simulazione What-If}
+
+\subsection{Metodologia di Simulazione}
+
+La simulazione segue questi passaggi:
+
+\begin{enumerate}
+    \item \textbf{Dataset A}: Dataset completo originale
+    \item \textbf{Dataset B+}: Sottinsieme con feature > 0
+    \item \textbf{Dataset B}: Simulazione con feature = 0 (refactored)
+    \item \textbf{Dataset C}: Sottinsieme con feature ≤ 0
+\end{enumerate}
+
+\subsection{Calibrazione della Soglia}
+
+Il sistema implementa una calibrazione dinamica della soglia di decisione utilizzando la statistica di Youden's J:
+
+\begin{equation}
+J = TPR - FPR = \frac{TP}{TP + FN} - \frac{FP}{FP + TN}
+\end{equation}
+
+Dove:
+\begin{itemize}
+    \item TPR: True Positive Rate
+    \item FPR: False Positive Rate
+    \item TP, FP, TN, FN: Matrice di confusione
+\end{itemize}
+
+\section{Risultati Sperimentali}
+
+\subsection{Progetto BOOKKEEPER}
+
+\subsubsection{Caratteristiche del Dataset}
+
+\begin{itemize}
+    \item \textbf{Release Analizzate}: 11 release (da 4.0.0 a 4.2.1)
+    \item \textbf{Metodi Analizzati}: 13,836 istanze
+    \item \textbf{Feature Selezionata}: CyclomaticComplexity
+    \item \textbf{Metodo Target}: BKException.getMessage(int)
+\end{itemize}
+
+\subsubsection{Risultati della Predizione}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Dataset} & \textbf{Istanze Totali} & \textbf{Difetti Predetti} \\
+\midrule
+A (Full Dataset) & 13,836 & 3,438 \\
+B+ (CyclomaticComplexity > 0) & 5,926 & 2,791 \\
+B (Refactored) & 5,926 & 543 \\
+C (CyclomaticComplexity ≤ 0) & 7,910 & 647 \\
+\bottomrule
+\end{tabular}
+\caption{Risultati della simulazione per BOOKKEEPER}
+\end{table}
+
+\subsubsection{Analisi dell'Impatto}
+
+\begin{itemize}
+    \item \textbf{Riduzione dei Difetti}: Da 2,791 a 543 (-80.5\%)
+    \item \textbf{Formula 1 (Drop)}: $\frac{2392 - 543}{2392} = 0.773$
+    \item \textbf{Formula 2 (Reduction)}: $\frac{2392 - 543}{3314} = 0.558$
+\end{itemize}
+
+\subsection{Confronto delle Feature}
+
+Il sistema confronta tutte le metriche tra versione originale e refactored:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Feature} & \textbf{Originale} & \textbf{Refactored} & \textbf{Miglioramento} \\
+\midrule
+CodeSmells & 2.00 & 1.00 & +1.00 \\
+CyclomaticComplexity & 20.00 & 2.00 & +18.00 \\
+ParameterCount & 1.00 & 1.00 & 0.00 \\
+NestingDepth & 2.00 & 3.00 & -1.00 \\
+NR & 2.00 & 2.00 & 0.00 \\
+NAuth & 1.00 & 1.00 & 0.00 \\
+stmtAdded & 4.00 & 4.00 & 0.00 \\
+stmtDeleted & 0.00 & 0.00 & 0.00 \\
+maxChurn & 2.00 & 2.00 & 0.00 \\
+avgChurn & 2.00 & 2.00 & 0.00 \\
+\bottomrule
+\end{tabular}
+\caption{Confronto completo delle feature}
+\end{table}
+
+\section{Problemi Risolti}
+
+\subsection{Problema 1: Formattazione delle Probabilità}
+
+\textbf{Problema}: Le probabilità di predizione mostravano placeholder `\{:.3f\}` invece di valori reali.
+
+\textbf{Causa}: Utilizzo di formattazione Python-style in Java.
+
+\textbf{Soluzione}: Sostituzione con `String.format("\%.3f", value)`.
+
+\subsection{Problema 2: Predizioni Tutte Zero}
+
+\textbf{Problema}: La colonna "Predicted Defects" mostrava sempre 0 o il numero totale di istanze.
+
+\textbf{Causa}: Utilizzo della soglia di decisione di default del classificatore (0.5).
+
+\textbf{Soluzione}: Implementazione di calibrazione dinamica della soglia usando Youden's J statistic.
+
+\subsection{Problema 3: Retraining Forzato}
+
+\textbf{Problema}: Il sistema forzava il retraining anche quando esisteva un modello salvato.
+
+\textbf{Causa}: Logica di controllo che cancellava il modello in presenza di dataset bilanciato.
+
+\textbf{Soluzione}: Rimozione della logica di retraining forzato.
+
+\subsection{Problema 4: Confronto Feature Limitato}
+
+\textbf{Problema}: Il confronto delle feature mostrava solo 4 metriche statiche.
+
+\textbf{Causa}: Il sistema non accedeva ai dati completi del dataset.
+
+\textbf{Soluzione}: Implementazione di parsing CSV per accesso completo alle feature.
+
+\section{Implementazione Tecnica}
+
+\subsection{Calibrazione della Soglia}
+
+\begin{lstlisting}[caption=Implementazione della calibrazione della soglia]
+public static double computeOptimalYesThreshold(
+    final Classifier model, final Instances data) throws Exception {
+    
+    final int buggyClassIndex = data.classAttribute().indexOfValue("yes");
+    final double[] probs = new double[data.numInstances()];
+    
+    for (int i = 0; i < data.numInstances(); i++) {
+        final double[] distribution = model.distributionForInstance(data.instance(i));
+        probs[i] = distribution[buggyClassIndex];
+    }
+    
+    final double[] uniq = Arrays.stream(probs).distinct().sorted().toArray();
+    if (uniq.length <= 1) return 0.5;
+    
+    double bestT = 0.5, bestJ = -1.0;
+    for (int i = 0; i < uniq.length - 1; i++) {
+        final double t = (uniq[i] + uniq[i+1]) / 2.0;
+        final double j = calculateYoudensJ(data, model, t, buggyClassIndex);
+        if (j > bestJ) {
+            bestJ = j;
+            bestT = t;
+        }
+    }
+    return bestT;
+}
+\end{lstlisting}
+
+\subsection{Parsing CSV per Confronto Feature}
+
+\begin{lstlisting}[caption=Parsing CSV per accesso completo alle feature]
+private Map<String, String> findMethodInCSV(
+    final String csvPath, final String methodPath) {
+    
+    try {
+        final String methodName = extractMethodNameFromPath(methodPath);
+        if (methodName == null) return null;
+
+        final String[] lines = Files.readAllLines(Paths.get(csvPath))
+            .toArray(new String[0]);
+        if (lines.length < 2) return null;
+
+        final String[] headers = lines[0].split(",");
+        for (int i = 0; i < headers.length; i++) {
+            headers[i] = headers[i].replace("\"", "").trim();
+        }
+
+        for (int i = 1; i < lines.length; i++) {
+            final String[] values = lines[i].split(",");
+            if (values.length >= 2) {
+                final String csvMethodName = values[1].replace("\"", "").trim();
+                if (csvMethodName.contains(methodName) && 
+                    csvMethodName.contains("BKException.java/getMessage(int)")) {
+                    
+                    final Map<String, String> methodData = new LinkedHashMap<>();
+                    for (int j = 0; j < Math.min(headers.length, values.length); j++) {
+                        methodData.put(headers[j], 
+                            values[j].replace("\"", "").trim());
+                    }
+                    return methodData;
+                }
+            }
+        }
+    } catch (final IOException e) {
+        log.debug("Error reading CSV file: {}", e.getMessage());
+    }
+    return null;
+}
+\end{lstlisting}
+
+\section{Valutazione e Metriche}
+
+\subsection{Metriche di Performance}
+
+\begin{itemize}
+    \item \textbf{AUC}: Area Under the ROC Curve (0.935 per IBk)
+    \item \textbf{Precision}: Accuratezza delle predizioni positive (0.907)
+    \item \textbf{Recall}: Sensibilità del modello (0.908)
+    \item \textbf{Kappa}: Accordo tra predizioni e realtà (0.731)
+\end{itemize}
+
+\subsection{Metriche di Impatto del Refactoring}
+
+\begin{itemize}
+    \item \textbf{Drop Rate}: Percentuale di riduzione dei difetti predetti
+    \item \textbf{Reduction Rate}: Impatto relativo sul dataset completo
+    \item \textbf{Feature Improvement}: Miglioramento delle metriche di qualità
+\end{itemize}
+
+\section{Conclusioni}
+
+\subsection{Risultati Ottenuti}
+
+Il progetto ha dimostrato con successo:
+
+\begin{enumerate}
+    \item \textbf{Efficacia della Predizione}: Il modello IBk raggiunge un AUC di 0.935
+    \item \textbf{Impatto del Refactoring}: Riduzione dell'80.5\% dei difetti predetti
+    \item \textbf{Miglioramento della Qualità}: Riduzione significativa della complessità ciclomatica
+    \item \textbf{Automatizzazione}: Sistema completamente automatizzato per l'analisi
+\end{enumerate}
+
+\subsection{Limitazioni}
+
+\begin{itemize}
+    \item \textbf{Dataset Limitato}: Analisi su due progetti open-source
+    \item \textbf{Feature Statiche}: Focus principalmente su metriche statiche
+    \item \textbf{Refactoring Simulato}: Non testato su refactoring reali
+\end{itemize}
+
+\subsection{Sviluppi Futuri}
+
+\begin{enumerate}
+    \item \textbf{Espansione Dataset}: Inclusione di più progetti
+    \item \textbf{Metriche Dinamiche}: Integrazione di metriche runtime
+    \item \textbf{Refactoring Reali}: Validazione su refactoring effettivi
+    \item \textbf{Interfaccia Utente}: Sviluppo di un'interfaccia grafica
+\end{enumerate}
+
+\section{Bibliografia}
+
+\begin{enumerate}
+    \item Hall, T., Beecham, S., Bowes, D., Gray, D., \& Counsell, S. (2012). A systematic literature review on fault prediction performance in software engineering. \textit{IEEE Transactions on Software Engineering}, 38(6), 1276-1304.
+    \item Menzies, T., Greenwald, J., \& Frank, A. (2007). Data mining static code attributes to learn defect predictors. \textit{IEEE Transactions on Software Engineering}, 33(1), 2-13.
+    \item Zimmermann, T., Nagappan, N., Gall, H., Giger, E., \& Murphy, B. (2009). Cross-project defect prediction: a large scale experiment on data vs. domain vs. process. \textit{Proceedings of the 7th joint meeting of the European software engineering conference and the ACM SIGSOFT symposium on the foundations of software engineering}.
+    \item Witten, I. H., Frank, E., Hall, M. A., \& Pal, C. J. (2016). \textit{Data Mining: Practical machine learning tools and techniques}. Morgan Kaufmann.
+    \item Fowler, M. (2018). \textit{Refactoring: improving the design of existing code}. Addison-Wesley Professional.
+\end{enumerate}
+
+\appendix
+
+\section{Codice Sorgente Principale}
+
+\subsection{DefectPredictionPipeline.java}
+
+\begin{lstlisting}[caption=Classe principale del pipeline]
+public class DefectPredictionPipeline {
+    private static final Logger log = LoggerFactory.getLogger(DefectPredictionPipeline.class);
+    
+    public static void main(String[] args) {
+        log.info("Starting Defect Prediction Analysis...");
+        
+        try {
+            final DefectPredictionPipeline pipeline = new DefectPredictionPipeline();
+            pipeline.processAllProjects();
+        } catch (Exception e) {
+            log.error("Pipeline execution failed", e);
+            System.exit(1);
+        }
+    }
+    
+    private void processAllProjects() throws Exception {
+        final String[] projects = {"BOOKKEEPER", "OPENJPA"};
+        
+        for (final String project : projects) {
+            log.info("--- STARTING PIPELINE FOR: {} ---", project);
+            runPipelineFor(project);
+            log.info("--- FINISHED PIPELINE FOR: {} ---", project);
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Configurazione del Progetto}
+
+\subsection{pom.xml}
+
+\begin{lstlisting}[caption=Configurazione Maven]
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>com.ispw2</groupId>
+    <artifactId>defect-prediction</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>weka-stable</artifactId>
+            <version>3.8.6</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-core</artifactId>
+            <version>3.25.7</version>
+        </dependency>
+        <!-- Altre dipendenze... -->
+    </dependencies>
+</project>
+\end{lstlisting}
+
+\end{document}

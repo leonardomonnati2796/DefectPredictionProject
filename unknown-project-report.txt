@@ -1,0 +1,4 @@
+Starting Defect Prediction Analysis...
+Configuration properties loaded successfully from /config.properties.
+Output for datasets: C:\Users\hp\Desktop\datasets
+Output for git clones: C:\Users\hp\Desktop\github_projects

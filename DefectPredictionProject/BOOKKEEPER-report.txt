@@ -1,0 +1,69 @@
+---------------------------------------------------------
+--- STARTING PIPELINE FOR: BOOKKEEPER ---
+---------------------------------------------------------
+Opening existing repository: C:\Users\hp\Desktop\DefectPredictionProjectFinal\github_projects\BOOKKEEPER
+Fetching project releases from JIRA for project BOOKKEEPER...
+Found 11 valid and sorted releases for project BOOKKEEPER.
+Successfully mapped 11 of 11 Jira releases to Git commits.
+[Milestone 1, Step 1] Checking for Dataset...
+Dataset already exists. Skipping generation.
+[...] Preprocessing data for analysis...
+Processed ARFF file already exists. Skipping preprocessing.
+Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+
+[Milestone 2, Step 2-3] Found saved model. Loading from file: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+Starting data analysis to find actionable method...
+[Milestone 2, Step 4 & 5] Finding Top Actionable Feature...
+Identified Top Actionable Feature (AFeature): CyclomaticComplexity
+[Milestone 2, Step 6] Identifying Target Method (AFMethod)...
+  -> Searching within the last analyzed release: 4.2.1
+  -> Found 164 buggy methods in this release.
+Identified AFMethod (buggy method with highest CyclomaticComplexity):
+  -> MethodName: bookkeeper-server/src/main/java/org/apache/bookkeeper/client/BKException.java/getMessage(int)
+  -> CyclomaticComplexity Value: 25
+[Milestone 2, Step 7] Saving AFMethod source code...
+  -> Source code of AFMethod saved to: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
+  -> Refactoring file already exists at: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
+Data analysis completed.
+Using balanced dataset for simulation: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_processed_balanced.arff
+[Milestone 2, Step 10] Starting What-If Simulation using AFeature: CyclomaticComplexity
+[Milestone 2, Step 11] Training BClassifier on dataset A (BClassifierA)...
+BClassifierA training completed successfully.
+Calibrated decision threshold (Youden's J) on A: 0,249
+[Milestone 2, Step 12] Defect Prediction Summary Table:
++------------------------------------+-----------------+-------------------+
+| Dataset                            | Total Instances | Predicted Defects |
++------------------------------------+-----------------+-------------------+
+| A (Full Dataset)                   |           13836 |              3438 |
+| B+ (CyclomaticComplexity > 0)      |            5926 |              2791 |
+| B (B+ with CyclomaticComplexity=0) |            5926 |               543 |
+| C (CyclomaticComplexity <= 0)      |            7910 |               647 |
++------------------------------------+-----------------+-------------------+
+[PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...
+--- PRELIMINARY ANALYSIS ---
+Predicted defects in B+ (original with CyclomaticComplexity > 0): 2791
+Predicted defects in B (refactored with CyclomaticComplexity = 0): 543
+QUESTION 1: NO - Predicted defects did not increase in AFMethod2 (543 vs 2791).
+QUESTION 2: YES - Predicted defects DECREASED in AFMethod2 (543 vs 2791).
+This suggests we MAY have improved maintainability by reducing CyclomaticComplexity from >0 to 0.
+--- END PRELIMINARY ANALYSIS ---
+[Milestone 2, Step 13] Calculating final metrics based on custom formulas...
+Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (2392 - 543) / 2392 = 0,773
+ANSWER 1 (drop): The calculated metric value is 0,773.
+Formula 2 (reduction) = (actual B+ - expected B) / actual A = (2392 - 543) / 3314 = 0,558
+ANSWER 2 (reduction): The calculated metric value is 0,558.
+Comparing methods:
+  Original: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
+  Refactored: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
+Feature comparison results:
+  CodeSmells: 2,00 -> 1,00 (improvement: 1,00)
+  CyclomaticComplexity: 20,00 -> 2,00 (improvement: 18,00)
+  ParameterCount: 1,00 -> 1,00 (improvement: 0,00)
+  NestingDepth: 2,00 -> 3,00 (improvement: -1,00)
+  NR: 2,00 -> 2,00 (improvement: 0,00)
+  NAuth: 1,00 -> 1,00 (improvement: 0,00)
+  stmtAdded: 4,00 -> 4,00 (improvement: 0,00)
+  stmtDeleted: 0,00 -> 0,00 (improvement: 0,00)
+  maxChurn: 2,00 -> 2,00 (improvement: 0,00)
+  avgChurn: 2,00 -> 2,00 (improvement: 0,00)
+--- FINISHED PIPELINE FOR: BOOKKEEPER ---
