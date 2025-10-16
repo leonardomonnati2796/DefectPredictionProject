@@ -55,6 +55,8 @@ public class VersionControlConnector {
         this.projectName = projectName;
         this.remoteUrl = remoteUrl;
         this.localPath = localPath;
+        this.repository = null; // Will be initialized when needed
+        this.git = null; // Will be initialized when needed
     }
 
     /**
@@ -157,7 +159,7 @@ public class VersionControlConnector {
             releaseName,
             "v" + releaseName,
             "release-" + releaseName,
-            this.projectName.toLowerCase() + "-" + releaseName
+            this.projectName.toLowerCase(Locale.ROOT) + "-" + releaseName
         );
 
         if(log.isDebugEnabled()){
@@ -331,7 +333,7 @@ public class VersionControlConnector {
                 treeWalk.setRecursive(true);
                 while (treeWalk.next()) {
                     final String path = treeWalk.getPathString();
-                    if (path.endsWith(".java") && !path.toLowerCase().contains("test")) {
+                    if (path.endsWith(".java") && !path.toLowerCase(Locale.ROOT).contains("test")) {
                         javaFiles.add(path);
                     }
                 }
@@ -364,8 +366,29 @@ public class VersionControlConnector {
      * 
      * @return The Git instance
      */
-    public Git getGit() { 
+    private Git getGit() { 
         return git; 
+    }
+    
+    /**
+     * Gets the commit log for a specific commit and file path.
+     * 
+     * @param commitId The commit ID to get log for
+     * @param filePath The file path to filter by
+     * @return Iterable of RevCommit objects
+     * @throws GitAPIException If Git operations fail
+     */
+    public Iterable<RevCommit> getCommitLog(final ObjectId commitId, final String filePath) throws GitAPIException {
+        return git.log().add(commitId).addPath(filePath).call();
+    }
+    
+    /**
+     * Gets the repository for diff operations.
+     * 
+     * @return The Git repository
+     */
+    public Repository getRepository() {
+        return git.getRepository();
     }
     
     /**

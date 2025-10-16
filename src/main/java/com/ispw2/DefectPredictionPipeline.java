@@ -20,20 +20,34 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class DefectPredictionPipeline {
 
     private static final Logger log = LoggerFactory.getLogger(DefectPredictionPipeline.class);
+    
+    // Constants for project configuration
     private static final List<SoftwareProject> PROJECTS_TO_ANALYZE = Arrays.asList(
             new SoftwareProject("BOOKKEEPER", "https://github.com/apache/bookkeeper.git"),
             new SoftwareProject("OPENJPA", "https://github.com/apache/openjpa.git")
     );
 
+    // Directory names
     private static final String DATASETS_DIR_NAME = "datasets";
     private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
+    
+    // File extensions
+    private static final String CSV_EXTENSION = ".csv";
+    private static final String ARFF_EXTENSION = ".arff";
+    private static final String MODEL_EXTENSION = "_best.model";
+    
+    // Default values
+    private static final int DEFAULT_TIMEOUT_MS = 30000;
+    private static final double DEFAULT_PERCENTAGE = 1.0;
 
     private static final class ProjectContext {
         private final ConfigurationManager config;
@@ -124,12 +138,12 @@ public class DefectPredictionPipeline {
             }
 
             public Builder releases(List<SoftwareRelease> releases) {
-                this.releases = releases;
+                this.releases = releases != null ? new ArrayList<>(releases) : null;
                 return this;
             }
 
             public Builder releaseCommits(Map<String, RevCommit> releaseCommits) {
-                this.releaseCommits = releaseCommits;
+                this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
                 return this;
             }
 
@@ -227,10 +241,10 @@ public class DefectPredictionPipeline {
         log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
         log.info("---------------------------------------------------------");
 
-        final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
-        final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
+        final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + CSV_EXTENSION).toString();
+        final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed" + ARFF_EXTENSION).toString();
         final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
-        final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
+        final String modelPath = Paths.get(datasetsBasePath, project.name() + MODEL_EXTENSION).toString();
 
         final VersionControlConnector git = new VersionControlConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
@@ -275,8 +289,18 @@ public class DefectPredictionPipeline {
             final MachineLearningModelTrainer runner = new MachineLearningModelTrainer(context.config(), context.processedArffPath(), context.modelPath());
             final Classifier bestModel = runner.getBestClassifier();
             
+            if (bestModel == null) {
+                log.error("Failed to obtain a valid classifier for project {}", context.projectName());
+                return;
+            }
+            
             final CodeQualityAnalyzer analyzer = new CodeQualityAnalyzer(context.config(), context.originalCsvPath(), context.processedArffPath(), context.git(), context.releaseCommits());
             final String aFeature = analyzer.findAndSaveActionableMethod();
+
+            if (aFeature == null) {
+                log.error("Failed to find actionable feature for project {}", context.projectName());
+                return;
+            }
 
             final RefactoringImpactAnalyzer simulator = new RefactoringImpactAnalyzer(context.processedArffPath(), bestModel, aFeature);
             simulator.runFullDatasetSimulation();

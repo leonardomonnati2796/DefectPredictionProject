@@ -27,7 +27,7 @@ public final class AnalyzedMethod {
     public String id() { return id; }
     public String signature() { return signature; }
     public String filepath() { return filepath; }
-    public Map<String, Number> getFeatures() { return features; }
+    public Map<String, Number> getFeatures() { return new HashMap<>(features); }
 
     public void addFeature(final String name, final Number value) {
         if (log.isDebugEnabled()) {
@@ -46,7 +46,7 @@ public final class AnalyzedMethod {
     @Override
     public boolean equals(final Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != this.getClass()) return false;
+        if (obj == null || getClass() != obj.getClass()) return false;
         final AnalyzedMethod that = (AnalyzedMethod) obj;
         return Objects.equals(this.id, that.id);
     }
@@ -58,11 +58,12 @@ public final class AnalyzedMethod {
 
     @Override
     public String toString() {
-        return "AnalyzedMethod[" +
-                "id=" + id +
-                ", signature='" + signature + '\'' +
-                ", filepath='" + filepath + '\'' +
-                ", features=" + features +
-                ']';
+        return new StringBuilder("AnalyzedMethod[")
+                .append("id=").append(id)
+                .append(", signature='").append(signature).append('\'')
+                .append(", filepath='").append(filepath).append('\'')
+                .append(", features=").append(features)
+                .append(']')
+                .toString();
     }
 }

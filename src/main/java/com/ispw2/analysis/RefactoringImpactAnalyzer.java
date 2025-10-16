@@ -27,6 +27,7 @@ public class RefactoringImpactAnalyzer {
         this.processedArffPath = processedArffPath;
         this.bClassifier = bClassifier;
         this.aFeatureName = aFeatureName;
+        this.datasetA = null; // Will be initialized when needed
     }
 
     /**

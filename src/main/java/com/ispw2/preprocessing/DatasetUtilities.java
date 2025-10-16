@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,16 +37,31 @@ public final class DatasetUtilities {
      * @throws IOException If file loading fails
      */
     public static Instances loadArff(final String filePath) throws IOException {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("File path cannot be null or empty");
+        }
+        
+        final File file = new File(filePath);
+        if (!file.exists()) {
+            throw new IOException("ARFF file does not exist: " + filePath);
+        }
+        
         if (log.isDebugEnabled()) {
             log.debug("Loading ARFF file from {}...", filePath);
         }
-        final ArffLoader loader = new ArffLoader();
-        loader.setSource(new File(filePath));
-        Instances data = loader.getDataSet();
-        if (log.isDebugEnabled()) {
-            log.debug("Successfully loaded {} instances from {}.", data.numInstances(), filePath);
+        
+        try {
+            final ArffLoader loader = new ArffLoader();
+            loader.setSource(file);
+            final Instances data = loader.getDataSet();
+            
+            if (log.isDebugEnabled()) {
+                log.debug("Successfully loaded {} instances from {}.", data.numInstances(), filePath);
+            }
+            return data;
+        } catch (Exception e) {
+            throw new IOException("Failed to load ARFF file: " + filePath, e);
         }
-        return data;
     }
 
     /**
@@ -59,7 +75,7 @@ public final class DatasetUtilities {
         if (log.isDebugEnabled()) {
             log.debug("Reading CSV file from {}...", filePath);
         }
-        try (Reader reader = new FileReader(filePath);
+        try (Reader reader = new FileReader(filePath, StandardCharsets.UTF_8);
              CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
             List<CSVRecord> records = parser.getRecords();
             if (log.isDebugEnabled()) {
@@ -77,28 +93,7 @@ public final class DatasetUtilities {
      * @return Number of instances predicted as defective
      */
     public static int countDefective(final Classifier model, final Instances data) {
-        log.debug("Counting PREDICTED defective instances...");
-        int defectiveCount = 0;
-        final Attribute classAttribute = data.classAttribute();
-
-        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
-        if (buggyClassIndexOpt.isEmpty()) {
-            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 predicted defects.");
-            return 0;
-        }
-        final double buggyClassIndex = buggyClassIndexOpt.get();
-
-        for (final Instance instance : data) {
-            try {
-                if (model.classifyInstance(instance) == buggyClassIndex) {
-                    defectiveCount++;
-                }
-            } catch (Exception e) {
-                log.warn("Could not classify instance. Skipping. Reason: {}", e.getMessage());
-            }
-        }
-        log.debug("Found {} PREDICTED defective instances.", defectiveCount);
-        return defectiveCount;
+        return countDefectiveInstances(data, "PREDICTED", instance -> model.classifyInstance(instance));
     }
 
     /**
@@ -108,24 +103,48 @@ public final class DatasetUtilities {
      * @return Number of instances that are actually defective
      */
     public static int countActualDefective(Instances data) {
-        log.debug("Counting ACTUAL defective instances...");
+        return countDefectiveInstances(data, "ACTUAL", instance -> instance.classValue());
+    }
+    
+    /**
+     * Counts defective instances using a provided classifier function.
+     * 
+     * @param data The dataset to analyze
+     * @param type Type of counting (for logging)
+     * @param classifier Function to determine if an instance is defective
+     * @return Number of defective instances
+     */
+    private static int countDefectiveInstances(Instances data, String type, InstanceClassifier classifier) {
+        log.debug("Counting {} defective instances...", type);
         int defectiveCount = 0;
         final Attribute classAttribute = data.classAttribute();
 
         final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
         if (buggyClassIndexOpt.isEmpty()) {
-            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 actual defects.");
+            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 {} defects.", type.toLowerCase());
             return 0;
         }
         final double buggyClassIndex = buggyClassIndexOpt.get();
 
         for (final Instance instance : data) {
-            if (instance.classValue() == buggyClassIndex) {
-                defectiveCount++;
+            try {
+                if (classifier.isDefective(instance) == buggyClassIndex) {
+                    defectiveCount++;
+                }
+            } catch (Exception e) {
+                log.warn("Could not classify instance. Skipping. Reason: {}", e.getMessage());
             }
         }
-        log.debug("Found {} ACTUAL defective instances.", defectiveCount);
+        log.debug("Found {} {} defective instances.", defectiveCount, type);
         return defectiveCount;
+    }
+    
+    /**
+     * Functional interface for classifying instances.
+     */
+    @FunctionalInterface
+    private interface InstanceClassifier {
+        double isDefective(Instance instance) throws Exception;
     }
     
     /**

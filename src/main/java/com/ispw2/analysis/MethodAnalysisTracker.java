@@ -88,7 +88,7 @@ public class MethodAnalysisTracker {
     private void extractMethodsFromFile(final String file, final String commitId, final List<AnalyzedMethod> currentMethods, final Map<AnalyzedMethod, CallableDeclaration<?>> methodAstMap) throws IOException {
         log.debug("Parsing file for methods: {}", file);
         final String content = git.getFileContent(file, commitId);
-        if (content == null || content.isEmpty()) {
+        if (content.isEmpty()) {
             log.warn("File content is empty for {}. Skipping.", file);
             return;
         }
@@ -150,7 +150,7 @@ public class MethodAnalysisTracker {
 
         final ChangeMetrics metrics = new ChangeMetrics();
         try {
-            final Iterable<RevCommit> commits = git.getGit().log().add(releaseCommit.getId()).addPath(trackedMethod.filepath()).call();
+            final Iterable<RevCommit> commits = git.getCommitLog(releaseCommit.getId(), trackedMethod.filepath());
             
             int commitCount = 0;
             for (final RevCommit commit : commits) {
@@ -179,7 +179,7 @@ public class MethodAnalysisTracker {
      */
     private void isMethodTouchedInCommit(String filePath, RevCommit commit, int methodStart, int methodEnd, ChangeMetrics metrics) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
-            diffFormatter.setRepository(git.getGit().getRepository());
+            diffFormatter.setRepository(git.getRepository());
             final List<DiffEntry> diffs = diffFormatter.scan(commit.getParent(0).getTree(), commit.getTree());
 
             for (final DiffEntry diff : diffs) {

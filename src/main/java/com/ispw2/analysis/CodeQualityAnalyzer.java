@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +47,7 @@ public class CodeQualityAnalyzer {
             this.signature = signature;
         }
 
-        public String filePath() {
+        public String getFilePath() {
             return filePath;
         }
 
@@ -104,7 +105,7 @@ public class CodeQualityAnalyzer {
         this.originalCsvPath = originalCsvPath;
         this.processedArffPath = processedArffPath;
         this.git = git;
-        this.releaseCommits = releaseCommits;
+        this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
     }
 
     /**
@@ -246,9 +247,9 @@ public class CodeQualityAnalyzer {
         log.debug("Using commit {} for release {}", commit.getName(), releaseName);
 
         try {
-            final String fileContent = git.getFileContent(identifier.filePath(), commit.getName());
+            final String fileContent = git.getFileContent(identifier.getFilePath(), commit.getName());
             if (fileContent.isEmpty()) {
-                log.warn("File content is empty for {}. Cannot extract method source.", identifier.filePath());
+                log.warn("File content is empty for {}. Cannot extract method source.", identifier.getFilePath());
                 return;
             }
 
@@ -262,7 +263,7 @@ public class CodeQualityAnalyzer {
                 log.debug("Successfully found and parsed method source code.");
                 handleFileSaving(methodSourceOpt.get());
             } else {
-                 log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.filePath());
+                 log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.getFilePath());
             }
         } catch (IOException e) {
             log.error("Could not read or write file for method: {}", identifier, e);
@@ -282,6 +283,9 @@ public class CodeQualityAnalyzer {
         log.debug("Preparing to save files in and alongside directory: {}", datasetsPath);
                 
         final String originalFileName = git.getProjectName() + ORIGINAL_AFMETHOD_FILENAME_SUFFIX;
+        if (originalFileName == null) {
+            throw new IOException("Cannot determine project name for file saving");
+        }
         final Path originalOutputPath = datasetsPath.resolve(originalFileName);
         Files.writeString(originalOutputPath, methodSource);
         

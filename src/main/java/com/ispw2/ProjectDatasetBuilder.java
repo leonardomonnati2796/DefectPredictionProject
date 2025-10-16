@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.*;
@@ -55,8 +56,8 @@ public class ProjectDatasetBuilder {
         this.projectName = projectName;
         this.git = git;
         this.jira = jira;
-        this.releases = releases;
-        this.releaseCommits = releaseCommits;
+        this.releases = releases != null ? new ArrayList<>(releases) : null;
+        this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
     }
 
     /**
@@ -171,7 +172,7 @@ public class ProjectDatasetBuilder {
         final CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setQuoteMode(QuoteMode.ALL)
                 .build();
-        try (FileWriter writer = new FileWriter(filePath);
+        try (FileWriter writer = new FileWriter(filePath, StandardCharsets.UTF_8);
              CSVPrinter csvPrinter = new CSVPrinter(writer, format)) {
             csvPrinter.printRecords(csvData);
         }

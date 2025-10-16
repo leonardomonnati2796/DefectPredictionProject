@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -112,7 +113,7 @@ public class DatasetPreprocessor {
     private Instances loadCsvManually(final String csvPath) throws IOException {
         Locale.setDefault(Locale.US);
         final CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();
-        try (Reader reader = new FileReader(csvPath);
+        try (Reader reader = new FileReader(csvPath, StandardCharsets.UTF_8);
              CSVParser parser = new CSVParser(reader, format)) {
 
             final List<String> headers = parser.getHeaderNames();
