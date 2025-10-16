@@ -363,6 +363,7 @@ public class VersionControlConnector {
     
     /**
      * Gets the Git instance for direct Git operations.
+     * This method is private to prevent exposure of internal representation.
      * 
      * @return The Git instance
      */
