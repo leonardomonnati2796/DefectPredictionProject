@@ -7,6 +7,9 @@ import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.BugReport;
 import com.ispw2.model.SoftwareRelease;
 import com.ispw2.model.AnalyzedMethod;
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.DataUtils;
+import com.ispw2.util.MethodUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
@@ -76,13 +79,13 @@ public class ProjectDatasetBuilder {
             git.findAndSetFixCommits(tickets);
             setVersionIndices(tickets, releases);
             final double pMedian = calculateProportionCoefficient(tickets);
-            log.debug("Calculated proportion median for bug introduction: {}", pMedian);
+            LoggingUtils.debugIfEnabled(log, "Calculated proportion median for bug introduction: {}", pMedian);
 
             final Map<String, List<String>> bugToMethodsMap = git.getBugToMethodsMap(tickets);
             final MethodAnalysisTracker tracker = new MethodAnalysisTracker(git);
 
             final List<String[]> csvData = buildCsvData(releases, tickets, releaseCommits, tracker, bugToMethodsMap, pMedian);
-            log.debug("Generated {} total rows (including header) for the dataset.", csvData.size());
+            LoggingUtils.debugIfEnabled(log, "Generated {} total rows (including header) for the dataset.", csvData.size());
 
             writeToCsv(csvFilePath, csvData);
             log.info("Dataset successfully written to {}", csvFilePath);
@@ -111,10 +114,10 @@ public class ProjectDatasetBuilder {
         final double cutoffPercentage = config.getReleaseCutoffPercentage();
         final int releaseCutoff = (int) Math.ceil(allReleases.size() * cutoffPercentage);
         final List<SoftwareRelease> releasesToAnalyze = allReleases.subList(0, releaseCutoff);
-        log.debug("Analyzing {} of {} releases (cutoff at {}%).", releasesToAnalyze.size(), allReleases.size(), cutoffPercentage * 100);
+        LoggingUtils.debugIfEnabled(log, "Analyzing {} of {} releases (cutoff at {}%).", releasesToAnalyze.size(), allReleases.size(), cutoffPercentage * 100);
 
         for (final SoftwareRelease release : releasesToAnalyze) {
-            log.debug("Processing release: {}", release.name());
+            LoggingUtils.debugIfEnabled(log, "Processing release: {}", release.name());
             final RevCommit releaseCommit = releaseCommits.get(release.name());
             if (releaseCommit == null) {
                 log.warn("Skipping release {} as no commit was found for it.", release.name());
@@ -122,7 +125,7 @@ public class ProjectDatasetBuilder {
             }
 
             final List<AnalyzedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
-            log.debug("Found {} methods for release {}", methods.size(), release.name());
+            LoggingUtils.debugIfEnabled(log, "Found {} methods for release {}", methods.size(), release.name());
             for (final AnalyzedMethod method : methods) {
                 final String[] row = createCsvRow(method, release, tickets, bugToMethodsMap, pMedian);
                 csvData.add(row);
@@ -144,20 +147,20 @@ public class ProjectDatasetBuilder {
     private String[] createCsvRow(final AnalyzedMethod method, final SoftwareRelease release, final List<BugReport> tickets, final Map<String, List<String>> bugToMethodsMap, final double pMedian) {
         final boolean isBuggy = isMethodBuggy(method, release, tickets, pMedian, bugToMethodsMap);
         final Map<String, Number> features = method.getFeatures();
-        final String methodName = method.filepath() + "/" + method.signature();
+        final String methodName = MethodUtils.createMethodIdentifier(method.filepath(), method.signature());
 
         return new String[]{
             this.projectName, methodName, release.name(),
-            features.getOrDefault(CodeQualityMetrics.CODE_SMELLS, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.DUPLICATION, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.NR, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.NAUTH, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.STMT_ADDED, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.STMT_DELETED, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.MAX_CHURN, 0).toString(),
-            String.format(Locale.US, "%.2f", features.getOrDefault(CodeQualityMetrics.AVG_CHURN, 0.0)),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.CODE_SMELLS, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.DUPLICATION, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.NR, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.NAUTH, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_ADDED, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_DELETED, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.MAX_CHURN, 0).toString(),
+            String.format(Locale.US, "%.2f", DataUtils.getNumberOrDefault(features, CodeQualityMetrics.AVG_CHURN, 0.0)),
             isBuggy ? BUGGY_YES : BUGGY_NO
         };
     }

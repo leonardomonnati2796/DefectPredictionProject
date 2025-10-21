@@ -8,6 +8,8 @@ import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.SoftwareRelease;
 import com.ispw2.preprocessing.DatasetPreprocessor;
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.FileUtils;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +19,6 @@ import weka.classifiers.Classifier;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -202,21 +203,17 @@ public class DefectPredictionPipeline {
      * @return The project root path or null if cannot be determined
      */
     private static Path determineProjectRoot() {
-        log.debug("Setting up project directories...");
-        final String executionDir = System.getProperty("user.dir");
-        final Path projectRoot = Paths.get(executionDir).getParent();
-        
-        if (projectRoot == null) {
-            log.error(PARENT_DIR_ERROR_MSG);
+        LoggingUtils.debugIfEnabled(log, "Setting up project directories...");
+        try {
+            final String parentDir = FileUtils.getParentDirectory(log);
+            final Path projectRoot = Paths.get(parentDir);
+            
+            LoggingUtils.debugIfEnabled(log, "Project root determined as: {}", projectRoot);
+            return projectRoot;
+        } catch (final IOException e) {
+            log.error(PARENT_DIR_ERROR_MSG, e);
             return null;
         }
-        
-        if (log.isDebugEnabled()) {
-            log.debug("Execution directory: {}", executionDir);
-            log.debug("Project root determined as: {}", projectRoot);
-        }
-        
-        return projectRoot;
     }
     
     /**
@@ -230,13 +227,11 @@ public class DefectPredictionPipeline {
         final Path datasetsPath = projectRoot.resolve(DATASETS_DIR_NAME);
         final Path gitProjectsPath = projectRoot.resolve(GIT_PROJECTS_DIR_NAME);
         
-        Files.createDirectories(datasetsPath);
-        Files.createDirectories(gitProjectsPath);
+        FileUtils.createDirectoryIfNotExists(datasetsPath.toString(), log);
+        FileUtils.createDirectoryIfNotExists(gitProjectsPath.toString(), log);
         
-        if (log.isInfoEnabled()) {
-            log.info("Output for datasets: {}", datasetsPath);
-            log.info("Output for git clones: {}", gitProjectsPath);
-        }
+        log.info("Output for datasets: {}", datasetsPath);
+        log.info("Output for git clones: {}", gitProjectsPath);
         
         return new Path[]{datasetsPath, gitProjectsPath};
     }
@@ -250,20 +245,20 @@ public class DefectPredictionPipeline {
      * @param gitProjectsPath Path where Git repositories will be cloned
      */
     private static void processAllProjects(ConfigurationManager config, Path datasetsPath, Path gitProjectsPath) {
-        log.debug("Starting to process all configured projects...");
+        LoggingUtils.debugIfEnabled(log, "Starting to process all configured projects...");
         for (final SoftwareProject project : PROJECTS_TO_ANALYZE) {
             MDC.put("projectName", project.name());
-            log.debug("--- Start processing project: {} ---", project.name());
+            LoggingUtils.debugIfEnabled(log, "--- Start processing project: {} ---", project.name());
             try {
                 runPipelineFor(config, project, datasetsPath.toString(), gitProjectsPath.toString());
             } catch (Exception e) {
                 log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
             } finally {
-                log.debug("--- Finished processing project: {} ---", project.name());
+                LoggingUtils.debugIfEnabled(log, "--- Finished processing project: {} ---", project.name());
                 MDC.clear();
             }
         }
-        log.debug("All configured projects have been processed.");
+        LoggingUtils.debugIfEnabled(log, "All configured projects have been processed.");
     }
 
     /**
@@ -281,9 +276,7 @@ public class DefectPredictionPipeline {
 
         final ProjectContext context = buildProjectContext(config, project, datasetsBasePath, gitProjectsPath);
         
-        if (log.isDebugEnabled()) {
-            log.debug("Created project context for pipeline: {}", context);
-        }
+        LoggingUtils.debugIfEnabled(log, "Created project context for pipeline: {}", context);
 
         executePipelineSteps(context);
         
@@ -437,9 +430,7 @@ public class DefectPredictionPipeline {
 
             final String[] methodPaths = buildMethodPaths(context);
             
-            if (log.isDebugEnabled()) {
-                log.debug("Comparing original method at '{}' with refactored method at '{}'", methodPaths[0], methodPaths[1]);
-            }
+            LoggingUtils.debugIfEnabled(log, "Comparing original method at '{}' with refactored method at '{}'", methodPaths[0], methodPaths[1]);
             
             final MethodFeatureComparator comparer = new MethodFeatureComparator();
             comparer.compareMethods(methodPaths[0], methodPaths[1]);
@@ -471,7 +462,7 @@ public class DefectPredictionPipeline {
     private static void generateDatasetIfNotExists(final ProjectContext context) {
         log.info("[Milestone 1, Step 1] Checking for Dataset...");
         final File datasetFile = new File(context.originalCsvPath());
-        log.debug("Checking for dataset file at: {}", context.originalCsvPath());
+        LoggingUtils.debugIfEnabled(log, "Checking for dataset file at: {}", context.originalCsvPath());
         
         if (isDatasetValid(datasetFile)) {
             log.info("Dataset already exists. Skipping generation.");
@@ -487,7 +478,7 @@ public class DefectPredictionPipeline {
      * @return true if the dataset is valid, false otherwise
      */
     private static boolean isDatasetValid(final File datasetFile) {
-        return datasetFile.exists() && datasetFile.length() > 0;
+        return FileUtils.isFileValid(datasetFile.getAbsolutePath(), log) && datasetFile.length() > 0;
     }
     
     /**
@@ -518,7 +509,7 @@ public class DefectPredictionPipeline {
     private static void preprocessData(final ProjectContext context) throws IOException {
         log.info("[...] Preprocessing data for analysis...");
         final File arffFile = new File(context.processedArffPath());
-        log.debug("Checking for preprocessed file at: {}", context.processedArffPath());
+        LoggingUtils.debugIfEnabled(log, "Checking for preprocessed file at: {}", context.processedArffPath());
         
         if (isArffFileValid(arffFile)) {
             log.info("Processed ARFF file already exists. Skipping preprocessing.");
@@ -534,7 +525,7 @@ public class DefectPredictionPipeline {
      * @return true if the file is valid, false otherwise
      */
     private static boolean isArffFileValid(final File arffFile) {
-        return arffFile.exists() && arffFile.length() > 0;
+        return FileUtils.isFileValid(arffFile.getAbsolutePath(), log) && arffFile.length() > 0;
     }
     
     /**

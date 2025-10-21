@@ -1,6 +1,8 @@
 package com.ispw2.analysis;
 
 import com.ispw2.preprocessing.DatasetUtilities;
+import com.ispw2.util.ExceptionUtils;
+import com.ispw2.util.LoggingUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -53,15 +55,13 @@ public class RefactoringImpactAnalyzer {
             final Classifier bClassifierA = createAndTrainClassifierOnA();
             log.info("BClassifierA training completed successfully.");
             
-            log.debug("Splitting dataset into B+ (at-risk) and C (safe) subsets.");
+            LoggingUtils.debugIfEnabled(log, "Splitting dataset into B+ (at-risk) and C (safe) subsets.");
             final Instances datasetBplus = DatasetUtilities.filterInstances(datasetA, this.aFeatureName, ">", 0);
             final Instances datasetC = DatasetUtilities.filterInstances(datasetA, this.aFeatureName, "<=", 0);
-            if (log.isDebugEnabled()) {
-                log.debug("Dataset B+ ({} > 0) contains {} instances.", aFeatureName, datasetBplus.numInstances());
-                log.debug("Dataset C ({} <= 0) contains {} instances.", aFeatureName, datasetC.numInstances());
-            }
+            LoggingUtils.debugIfEnabled(log, "Dataset B+ ({} > 0) contains {} instances.", aFeatureName, datasetBplus.numInstances());
+            LoggingUtils.debugIfEnabled(log, "Dataset C ({} <= 0) contains {} instances.", aFeatureName, datasetC.numInstances());
 
-            log.debug("Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
+            LoggingUtils.debugIfEnabled(log, "Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
             final Instances datasetB = createSyntheticDatasetB(datasetBplus, this.aFeatureName);
 
         logSimulationSummaryTable(datasetA, datasetBplus, datasetB, datasetC, bClassifierA);
@@ -70,51 +70,29 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(datasetBplus, datasetB, bClassifierA);
         } catch (final ClassifierTrainingException e) {
-            // Attempt to handle the error with recovery strategy
-            log.warn("Attempting to recover from classifier training failure for feature '{}'", this.aFeatureName);
-            try {
-                // Try to use a simpler classifier as fallback
-                log.info("Attempting to use fallback classifier approach");
-                // This would be a simplified classifier that's more likely to work
-                log.warn("Using simplified classifier for limited analysis");
-                // Log the recovery attempt
-                log.info("Recovery attempt completed for classifier training failure");
-            } catch (final Exception recoveryException) {
-                log.error("Recovery attempt failed for classifier training: {}", recoveryException.getMessage(), recoveryException);
-                log.error("Cannot proceed with simulation without working classifier");
-            }
-            throw new IOException("Simulation aborted: Classifier training failed for feature '" + 
-                    this.aFeatureName + "' - " + e.getMessage(), e);
+            ExceptionUtils.handleGenericException(log, "Classifier training", e, "feature '" + this.aFeatureName + "'");
+            ExceptionUtils.attemptRecovery(log, "Classifier training", e, "Using simplified classifier for limited analysis");
+            ExceptionUtils.logCannotProceed(log, "simulation", "without working classifier");
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Classifier training failed for feature '" + this.aFeatureName, e), e);
         } catch (final DatasetCreationException e) {
-            // Attempt to handle the error gracefully
-            log.warn("Attempting to recover from dataset creation failure for feature '{}'", this.aFeatureName);
-            try {
-                // Try to create a minimal dataset for analysis
-                log.info("Creating fallback dataset for limited analysis");
-                // This would be a simplified version of the dataset
-                log.warn("Simulation will continue with limited functionality");
-            } catch (final Exception recoveryException) {
-                log.error("Recovery attempt failed: {}", recoveryException.getMessage(), recoveryException);
-            }
-            throw new IOException("Simulation aborted: Dataset creation failed for feature '" + 
-                    this.aFeatureName + "' - " + e.getMessage(), e);
+            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + this.aFeatureName + "'");
+            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Creating fallback dataset for limited analysis");
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Dataset creation failed for feature '" + this.aFeatureName, e), e);
         } catch (final Exception e) {
-            // Log the full context and abort
-            log.error("Simulation cannot continue due to unexpected error for feature '{}'", this.aFeatureName);
-            throw new IOException("Simulation aborted: Unexpected error for feature '" + 
-                    this.aFeatureName + "' - " + e.getMessage(), e);
+            ExceptionUtils.handleGenericException(log, "Simulation", e, "feature '" + this.aFeatureName + "'");
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Unexpected error for feature '" + this.aFeatureName, e), e);
         }
     }
     
     private Classifier createAndTrainClassifierOnA() throws ClassifierTrainingException {
-        log.debug("Creating new instance of classifier type: {}", bClassifier.getClass().getSimpleName());
+        LoggingUtils.debugIfEnabled(log, "Creating new instance of classifier type: {}", bClassifier.getClass().getSimpleName());
         
         try {
             // Create a new instance of the same classifier type
             final Classifier bClassifierA = bClassifier.getClass().getDeclaredConstructor().newInstance();
             
             // Train it on dataset A
-            log.debug("Training BClassifierA on dataset A with {} instances...", datasetA.numInstances());
+            LoggingUtils.debugIfEnabled(log, "Training BClassifierA on dataset A with {} instances...", datasetA.numInstances());
             bClassifierA.buildClassifier(datasetA);
             
             return bClassifierA;
@@ -143,13 +121,7 @@ public class RefactoringImpactAnalyzer {
      * Attempts alternative classifier instantiation methods.
      */
     private void tryAlternativeInstantiation() {
-        try {
-            // Try alternative instantiation approach
-            log.info("Attempting alternative classifier instantiation method");
-            log.warn("Using fallback instantiation approach");
-        } catch (final Exception alternativeException) {
-            log.error("Alternative instantiation also failed: {}", alternativeException.getMessage(), alternativeException);
-        }
+        ExceptionUtils.attemptRecovery(log, "Classifier instantiation", new Exception("Instantiation failed"), "Using fallback instantiation approach");
     }
     
     /**
@@ -158,22 +130,16 @@ public class RefactoringImpactAnalyzer {
      * @param e The training exception
      */
     private void handleTrainingError(final Exception e) {
-        log.warn("Attempting to handle classifier training error");
+        ExceptionUtils.handleGenericException(log, "Classifier training", e);
         tryAlternativeTraining();
-        log.error("Cannot proceed with simulation without trained classifier");
+        ExceptionUtils.logCannotProceed(log, "simulation", "without trained classifier");
     }
     
     /**
      * Attempts alternative classifier training methods.
      */
     private void tryAlternativeTraining() {
-        try {
-            // Try alternative training approach
-            log.info("Attempting alternative classifier training method");
-            log.warn("Using fallback training approach");
-        } catch (final Exception alternativeException) {
-            log.error("Alternative training also failed: {}", alternativeException.getMessage(), alternativeException);
-        }
+        ExceptionUtils.attemptRecovery(log, "Classifier training", new Exception("Training failed"), "Using fallback training approach");
     }
     
     private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) throws DatasetCreationException {
@@ -192,31 +158,14 @@ public class RefactoringImpactAnalyzer {
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
-            // Attempt to handle the error with alternative approach
-            log.warn("Attempting alternative dataset creation approach for feature '{}'", featureNameToModify);
-            try {
-                // Try to create a simplified version of the dataset
-                log.info("Creating simplified dataset B for feature '{}'", featureNameToModify);
-                // This would be a fallback approach
-                log.warn("Using fallback dataset creation method");
-            } catch (final Exception alternativeException) {
-                log.error("Alternative approach also failed: {}", alternativeException.getMessage(), alternativeException);
-            }
-            throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
-                    featureNameToModify + "': " + e.getMessage(), e);
+            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + featureNameToModify + "'");
+            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Creating simplified dataset B for feature '" + featureNameToModify + "'");
+            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for feature '" + featureNameToModify, e), e);
         } catch (final Exception e) {
-            // Attempt to handle the general error
-            log.warn("Attempting to handle general dataset creation error for feature '{}'", featureNameToModify);
-            try {
-                // Try alternative dataset creation approach
-                log.info("Attempting alternative dataset creation method for feature '{}'", featureNameToModify);
-                log.warn("Using fallback dataset creation approach");
-            } catch (final Exception alternativeException) {
-                log.error("Alternative dataset creation also failed: {}", alternativeException.getMessage(), alternativeException);
-            }
-            log.error("Cannot proceed with simulation due to dataset creation error");
-            throw new DatasetCreationException("Cannot create synthetic dataset B for feature '" + 
-                    featureNameToModify + "': " + e.getMessage(), e);
+            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + featureNameToModify + "'");
+            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Using fallback dataset creation approach");
+            ExceptionUtils.logCannotProceed(log, "simulation", "due to dataset creation error");
+            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for feature '" + featureNameToModify, e), e);
         }
     }
     
@@ -288,13 +237,11 @@ public class RefactoringImpactAnalyzer {
         final int actualDefectsInBplus = DatasetUtilities.countActualDefective(bPlus);
         final int predictedDefectsInB = DatasetUtilities.countDefective(bClassifierA, b);
 
-        if(log.isDebugEnabled()){
-            log.debug("--- Formula Components ---");
-            log.debug("Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
-            log.debug("Predicted Defects in B (expected B) = {}", predictedDefectsInB);
-            log.debug("Actual Defects in A (actual A) = {}", actualDefectsInA);
-            log.debug("--------------------------");
-        }
+        LoggingUtils.debugIfEnabled(log, "--- Formula Components ---");
+        LoggingUtils.debugIfEnabled(log, "Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
+        LoggingUtils.debugIfEnabled(log, "Predicted Defects in B (expected B) = {}", predictedDefectsInB);
+        LoggingUtils.debugIfEnabled(log, "Actual Defects in A (actual A) = {}", actualDefectsInA);
+        LoggingUtils.debugIfEnabled(log, "--------------------------");
 
         double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
 
