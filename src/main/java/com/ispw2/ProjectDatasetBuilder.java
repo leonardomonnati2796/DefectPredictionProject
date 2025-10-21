@@ -10,6 +10,8 @@ import com.ispw2.model.AnalyzedMethod;
 import com.ispw2.util.LoggingUtils;
 import com.ispw2.util.DataUtils;
 import com.ispw2.util.MethodUtils;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.FormattingUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
@@ -88,7 +90,7 @@ public class ProjectDatasetBuilder {
             LoggingUtils.debugIfEnabled(log, "Generated {} total rows (including header) for the dataset.", csvData.size());
 
             writeToCsv(csvFilePath, csvData);
-            log.info("Dataset successfully written to {}", csvFilePath);
+            LoggingPatterns.logFileOperation(log, "Dataset successfully written to", csvFilePath);
 
         } catch (IOException e) {
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
@@ -160,7 +162,7 @@ public class ProjectDatasetBuilder {
             DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_ADDED, 0).toString(),
             DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_DELETED, 0).toString(),
             DataUtils.getNumberOrDefault(features, CodeQualityMetrics.MAX_CHURN, 0).toString(),
-            String.format(Locale.US, "%.2f", DataUtils.getNumberOrDefault(features, CodeQualityMetrics.AVG_CHURN, 0.0)),
+            FormattingUtils.formatDecimal(DataUtils.getNumberOrDefault(features, CodeQualityMetrics.AVG_CHURN, 0.0)),
             isBuggy ? BUGGY_YES : BUGGY_NO
         };
     }

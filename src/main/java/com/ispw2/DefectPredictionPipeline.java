@@ -10,6 +10,8 @@ import com.ispw2.model.SoftwareRelease;
 import com.ispw2.preprocessing.DatasetPreprocessor;
 import com.ispw2.util.LoggingUtils;
 import com.ispw2.util.FileUtils;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.ValidationUtils;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -169,7 +171,7 @@ public class DefectPredictionPipeline {
      */
     public static void main(final String[] args) {
         initializeLogging();
-        log.info("Starting Defect Prediction Analysis...");
+        LoggingPatterns.info(log, "Starting Defect Prediction Analysis...");
         
         final ConfigurationManager config = new ConfigurationManager();
 
@@ -186,7 +188,7 @@ public class DefectPredictionPipeline {
             log.error(FATAL_IO_ERROR_MSG, e);
         }
 
-        log.info("All projects processed and evaluated successfully.");
+        LoggingPatterns.info(log, "All projects processed and evaluated successfully.");
     }
     
     /**
@@ -230,8 +232,8 @@ public class DefectPredictionPipeline {
         FileUtils.createDirectoryIfNotExists(datasetsPath.toString(), log);
         FileUtils.createDirectoryIfNotExists(gitProjectsPath.toString(), log);
         
-        log.info("Output for datasets: {}", datasetsPath);
-        log.info("Output for git clones: {}", gitProjectsPath);
+        LoggingPatterns.logFileOperation(log, "Output for datasets", datasetsPath.toString());
+        LoggingPatterns.logFileOperation(log, "Output for git clones", gitProjectsPath.toString());
         
         return new Path[]{datasetsPath, gitProjectsPath};
     }
@@ -280,7 +282,7 @@ public class DefectPredictionPipeline {
 
         executePipelineSteps(context);
         
-        log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
+        LoggingPatterns.logPipelineFinish(log, project.name());
     }
     
     /**
@@ -289,9 +291,7 @@ public class DefectPredictionPipeline {
      * @param projectName The name of the project being processed
      */
     private static void logPipelineStart(final String projectName) {
-        log.info("---------------------------------------------------------");
-        log.info("--- STARTING PIPELINE FOR: {} ---", projectName);
-        log.info("---------------------------------------------------------");
+        LoggingPatterns.logPipelineStart(log, projectName);
     }
     
     /**
@@ -460,12 +460,12 @@ public class DefectPredictionPipeline {
      * @param context Project context containing dataset paths and configurations
      */
     private static void generateDatasetIfNotExists(final ProjectContext context) {
-        log.info("[Milestone 1, Step 1] Checking for Dataset...");
+        LoggingPatterns.logMilestone(log, 1, 1, "Checking for Dataset...");
         final File datasetFile = new File(context.originalCsvPath());
         LoggingUtils.debugIfEnabled(log, "Checking for dataset file at: {}", context.originalCsvPath());
         
         if (isDatasetValid(datasetFile)) {
-            log.info("Dataset already exists. Skipping generation.");
+            LoggingPatterns.info(log, "Dataset already exists. Skipping generation.");
         } else {
             generateNewDataset(context);
         }
@@ -478,7 +478,7 @@ public class DefectPredictionPipeline {
      * @return true if the dataset is valid, false otherwise
      */
     private static boolean isDatasetValid(final File datasetFile) {
-        return FileUtils.isFileValid(datasetFile.getAbsolutePath(), log) && datasetFile.length() > 0;
+        return ValidationUtils.isValidFile(datasetFile.getAbsolutePath(), log);
     }
     
     /**
@@ -487,7 +487,7 @@ public class DefectPredictionPipeline {
      * @param context The project context
      */
     private static void generateNewDataset(final ProjectContext context) {
-        log.info("Dataset not found or is empty. Generating...");
+        LoggingPatterns.info(log, "Dataset not found or is empty. Generating...");
         final ProjectDatasetBuilder generator = new ProjectDatasetBuilder(
             context.config(), 
             context.projectName(), 
@@ -507,12 +507,12 @@ public class DefectPredictionPipeline {
      * @throws IOException If preprocessing fails
      */
     private static void preprocessData(final ProjectContext context) throws IOException {
-        log.info("[...] Preprocessing data for analysis...");
+        LoggingPatterns.info(log, "Preprocessing data for analysis...");
         final File arffFile = new File(context.processedArffPath());
         LoggingUtils.debugIfEnabled(log, "Checking for preprocessed file at: {}", context.processedArffPath());
         
         if (isArffFileValid(arffFile)) {
-            log.info("Processed ARFF file already exists. Skipping preprocessing.");
+            LoggingPatterns.info(log, "Processed ARFF file already exists. Skipping preprocessing.");
         } else {
             performDataPreprocessing(context);
         }
@@ -525,7 +525,7 @@ public class DefectPredictionPipeline {
      * @return true if the file is valid, false otherwise
      */
     private static boolean isArffFileValid(final File arffFile) {
-        return FileUtils.isFileValid(arffFile.getAbsolutePath(), log) && arffFile.length() > 0;
+        return ValidationUtils.isValidFile(arffFile.getAbsolutePath(), log);
     }
     
     /**
@@ -535,11 +535,11 @@ public class DefectPredictionPipeline {
      * @throws IOException If preprocessing fails
      */
     private static void performDataPreprocessing(final ProjectContext context) throws IOException {
-        log.info("ARFF file not found. Starting preprocessing...");
+        LoggingPatterns.info(log, "ARFF file not found. Starting preprocessing...");
         try {
             final DatasetPreprocessor processor = new DatasetPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
             processor.processData();
-            log.info("Data preprocessing complete. Output: {}", context.processedArffPath());
+            LoggingPatterns.logFileOperation(log, "Data preprocessing complete. Output", context.processedArffPath());
         } catch (final Exception e) {
             throw new IOException(PREPROCESSING_ERROR_MSG, e);
         }

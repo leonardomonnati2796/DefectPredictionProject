@@ -3,6 +3,7 @@ package com.ispw2.analysis;
 import com.ispw2.preprocessing.DatasetUtilities;
 import com.ispw2.util.ExceptionUtils;
 import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.LoggingPatterns;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -49,11 +50,11 @@ public class RefactoringImpactAnalyzer {
             return;
         }
 
-        log.info("[Milestone 2, Step 11] Training BClassifier on dataset A (BClassifierA)...");
+        LoggingPatterns.logMilestone(log, 2, 11, "Training BClassifier on dataset A (BClassifierA)...");
         try {
             // Create a new instance of the same classifier type and train it on dataset A
             final Classifier bClassifierA = createAndTrainClassifierOnA();
-            log.info("BClassifierA training completed successfully.");
+            LoggingPatterns.info(log, "BClassifierA training completed successfully.");
             
             LoggingUtils.debugIfEnabled(log, "Splitting dataset into B+ (at-risk) and C (safe) subsets.");
             final Instances datasetBplus = DatasetUtilities.filterInstances(datasetA, this.aFeatureName, ">", 0);
@@ -170,7 +171,7 @@ public class RefactoringImpactAnalyzer {
     }
     
     private void logSimulationSummaryTable(final Instances dataA, final Instances bPlus, final Instances b, final Instances c, final Classifier bClassifierA) {
-        log.info("[Milestone 2, Step 12] Defect Prediction Summary Table:");
+        LoggingPatterns.logMilestone(log, 2, 12, "Defect Prediction Summary Table:");
 
         if (log.isInfoEnabled()) {
             int defectsInA = DatasetUtilities.countDefective(bClassifierA, dataA);
