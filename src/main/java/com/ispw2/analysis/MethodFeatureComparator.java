@@ -16,6 +16,9 @@ import java.util.Map;
  */
 public class MethodFeatureComparator {
     private static final Logger log = LoggerFactory.getLogger(MethodFeatureComparator.class);
+    
+    // Constants for string formatting
+    private static final String FEATURE_COMPARISON_FORMAT = "  %s: %.2f -> %.2f (improvement: %.2f)";
 
     /**
      * Compares the features of original and refactored methods.
@@ -38,7 +41,7 @@ public class MethodFeatureComparator {
                 final double refactoredValue = refactoredFeatures.getOrDefault(feature, 0.0);
                 final double improvement = originalValue - refactoredValue;
                 
-                final String message = String.format("  %s: %.2f -> %.2f (improvement: %.2f)", 
+                final String message = String.format(FEATURE_COMPARISON_FORMAT, 
                         feature, originalValue, refactoredValue, improvement);
                 log.info(message);
             }
