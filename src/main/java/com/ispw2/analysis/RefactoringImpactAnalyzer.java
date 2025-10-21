@@ -119,30 +119,60 @@ public class RefactoringImpactAnalyzer {
             
             return bClassifierA;
         } catch (final ReflectiveOperationException e) {
-            // Attempt to handle the reflection error
-            log.warn("Attempting to handle reflection error for classifier creation of type {}", 
-                    bClassifier.getClass().getSimpleName());
-            try {
-                // Try alternative instantiation approach
-                log.info("Attempting alternative classifier instantiation method");
-                log.warn("Using fallback instantiation approach");
-            } catch (final Exception alternativeException) {
-                log.error("Alternative instantiation also failed: {}", alternativeException.getMessage(), alternativeException);
-            }
-            log.error("Cannot proceed with simulation without a working classifier");
+            handleReflectionError(e);
             throw new ClassifierTrainingException("Cannot instantiate classifier for simulation: " + e.getMessage(), e);
         } catch (final Exception e) {
-            // Attempt to handle training error
-            log.warn("Attempting to handle classifier training error");
-            try {
-                // Try alternative training approach
-                log.info("Attempting alternative classifier training method");
-                log.warn("Using fallback training approach");
-            } catch (final Exception alternativeException) {
-                log.error("Alternative training also failed: {}", alternativeException.getMessage(), alternativeException);
-            }
-            log.error("Cannot proceed with simulation without trained classifier");
+            handleTrainingError(e);
             throw new ClassifierTrainingException("Cannot train classifier for simulation: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Handles reflection errors during classifier instantiation.
+     * 
+     * @param e The reflection operation exception
+     */
+    private void handleReflectionError(final ReflectiveOperationException e) {
+        log.warn("Attempting to handle reflection error for classifier creation of type {}", 
+                bClassifier.getClass().getSimpleName());
+        tryAlternativeInstantiation();
+        log.error("Cannot proceed with simulation without a working classifier");
+    }
+    
+    /**
+     * Attempts alternative classifier instantiation methods.
+     */
+    private void tryAlternativeInstantiation() {
+        try {
+            // Try alternative instantiation approach
+            log.info("Attempting alternative classifier instantiation method");
+            log.warn("Using fallback instantiation approach");
+        } catch (final Exception alternativeException) {
+            log.error("Alternative instantiation also failed: {}", alternativeException.getMessage(), alternativeException);
+        }
+    }
+    
+    /**
+     * Handles training errors during classifier training.
+     * 
+     * @param e The training exception
+     */
+    private void handleTrainingError(final Exception e) {
+        log.warn("Attempting to handle classifier training error");
+        tryAlternativeTraining();
+        log.error("Cannot proceed with simulation without trained classifier");
+    }
+    
+    /**
+     * Attempts alternative classifier training methods.
+     */
+    private void tryAlternativeTraining() {
+        try {
+            // Try alternative training approach
+            log.info("Attempting alternative classifier training method");
+            log.warn("Using fallback training approach");
+        } catch (final Exception alternativeException) {
+            log.error("Alternative training also failed: {}", alternativeException.getMessage(), alternativeException);
         }
     }
     
