@@ -10,6 +10,7 @@ public final class CodeQualityMetrics {
     public static final String CYCLOMATIC_COMPLEXITY = "CyclomaticComplexity";
     public static final String PARAMETER_COUNT = "ParameterCount";
     public static final String CODE_SMELLS = "CodeSmells";
+    public static final String NESTING_DEPTH = "NestingDepth";
     
     // Code duplication metrics
     public static final String DUPLICATION = "Duplication";

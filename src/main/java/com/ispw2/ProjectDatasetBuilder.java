@@ -148,16 +148,16 @@ public class ProjectDatasetBuilder {
 
         return new String[]{
             this.projectName, methodName, release.name(),
-            features.getOrDefault("CodeSmells", 0).toString(),
-            features.getOrDefault("CyclomaticComplexity", 0).toString(),
-            features.getOrDefault("ParameterCount", 0).toString(),
-            features.getOrDefault("Duplication", 0).toString(),
-            features.getOrDefault("NR", 0).toString(),
-            features.getOrDefault("NAuth", 0).toString(),
-            features.getOrDefault("stmtAdded", 0).toString(),
-            features.getOrDefault("stmtDeleted", 0).toString(),
-            features.getOrDefault("maxChurn", 0).toString(),
-            String.format(Locale.US, "%.2f", features.getOrDefault("avgChurn", 0.0)),
+            features.getOrDefault(CodeQualityMetrics.CODE_SMELLS, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.DUPLICATION, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.NR, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.NAUTH, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.STMT_ADDED, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.STMT_DELETED, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.MAX_CHURN, 0).toString(),
+            String.format(Locale.US, "%.2f", features.getOrDefault(CodeQualityMetrics.AVG_CHURN, 0.0)),
             isBuggy ? BUGGY_YES : BUGGY_NO
         };
     }
