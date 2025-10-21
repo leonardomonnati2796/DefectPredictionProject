@@ -283,9 +283,6 @@ public class CodeQualityAnalyzer {
         log.debug("Preparing to save files in and alongside directory: {}", datasetsPath);
                 
         final String originalFileName = git.getProjectName() + ORIGINAL_AFMETHOD_FILENAME_SUFFIX;
-        if (originalFileName == null) {
-            throw new IOException("Cannot determine project name for file saving");
-        }
         final Path originalOutputPath = datasetsPath.resolve(originalFileName);
         Files.writeString(originalOutputPath, methodSource);
         
