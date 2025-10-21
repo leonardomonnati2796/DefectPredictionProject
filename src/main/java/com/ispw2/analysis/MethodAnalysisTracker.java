@@ -18,18 +18,18 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.ispw2.util.CollectionUtils;
 
 public class MethodAnalysisTracker {
     private static final Logger log = LoggerFactory.getLogger(MethodAnalysisTracker.class);
     private final VersionControlConnector git;
-    private final Map<String, AnalyzedMethod> lastKnownMethods = new HashMap<>();
+    private final Map<String, AnalyzedMethod> lastKnownMethods = CollectionUtils.createHashMap();
 
     private static final String METHOD_KEY_SEPARATOR = "::";
     private static final int INVALID_LINE_NUMBER = -1;
@@ -60,7 +60,7 @@ public class MethodAnalysisTracker {
         log.debug("Found {} Java files in commit {}", javaFiles.size(), commitId);
 
         final List<AnalyzedMethod> currentMethods = new ArrayList<>();
-        final Map<AnalyzedMethod, CallableDeclaration<?>> methodAstMap = new HashMap<>();
+        final Map<AnalyzedMethod, CallableDeclaration<?>> methodAstMap = CollectionUtils.createHashMap();
 
         extractMethodsFromAllFiles(javaFiles, commitId, currentMethods, methodAstMap);
         calculateFeaturesForAllMethods(currentMethods, methodAstMap, releaseCommit);
@@ -373,7 +373,7 @@ public class MethodAnalysisTracker {
          * @return Map of feature names to values
          */
         Map<String, Number> toMap() {
-            final Map<String, Number> features = new HashMap<>();
+            final Map<String, Number> features = CollectionUtils.createHashMap();
             features.put(CodeQualityMetrics.NR, revisionCount);
             features.put(CodeQualityMetrics.NAUTH, authors.size());
             features.put(CodeQualityMetrics.STMT_ADDED, totalLinesAdded);
@@ -399,7 +399,7 @@ public class MethodAnalysisTracker {
      * @return Map of placeholder change features with zero values
      */
     private Map<String, Number> getPlaceholderChangeFeatures() {
-        final Map<String, Number> features = new HashMap<>();
+        final Map<String, Number> features = CollectionUtils.createHashMap();
         features.put(CodeQualityMetrics.NR, 0);
         features.put(CodeQualityMetrics.NAUTH, 0);
         features.put(CodeQualityMetrics.STMT_ADDED, 0);

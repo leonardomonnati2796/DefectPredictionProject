@@ -3,9 +3,9 @@ package com.ispw2.analysis;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.expr.ConditionalExpr;
 import com.github.javaparser.ast.stmt.*;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.ispw2.util.CollectionUtils;
 
 /**
  * Utility class for calculating code quality metrics from Java method AST nodes.
@@ -24,7 +24,7 @@ public final class CodeMetricsCalculator {
      * @return Map containing all calculated metrics
      */
     public static Map<String, Number> calculateAll(final CallableDeclaration<?> callable) {
-        final Map<String, Number> features = new HashMap<>();
+        final Map<String, Number> features = CollectionUtils.createHashMap();
         features.put(CodeQualityMetrics.CODE_SMELLS, calculateCodeSmells(callable));
         features.put(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, calculateCyclomaticComplexity(callable));
         features.put(CodeQualityMetrics.PARAMETER_COUNT, callable.getParameters().size());

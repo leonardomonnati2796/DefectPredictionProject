@@ -1,6 +1,7 @@
 package com.ispw2.model;
 
 import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +27,7 @@ public final class AnalyzedMethod {
     public String id() { return id; }
     public String signature() { return signature; }
     public String filepath() { return filepath; }
-    public Map<String, Number> getFeatures() { return new HashMap<>(features); }
+    public Map<String, Number> getFeatures() { return CollectionUtils.defensiveCopy(features); }
 
     public void addFeature(final String name, final Number value) {
         LoggingUtils.debugIfEnabled(log, "Adding feature to method {}: {} = {}", this.id, name, value);

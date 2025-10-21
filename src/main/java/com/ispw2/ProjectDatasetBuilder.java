@@ -12,6 +12,7 @@ import com.ispw2.util.DataUtils;
 import com.ispw2.util.MethodUtils;
 import com.ispw2.util.LoggingPatterns;
 import com.ispw2.util.FormattingUtils;
+import com.ispw2.util.StreamUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
@@ -237,14 +238,14 @@ public class ProjectDatasetBuilder {
      * @param releases List of software releases for index mapping
      */
     private void setVersionIndices(final List<BugReport> tickets, final List<SoftwareRelease> releases) {
-        final Map<String, Integer> releaseNameIndexMap = releases.stream().collect(Collectors.toMap(SoftwareRelease::name, SoftwareRelease::index));
+        final Map<String, Integer> releaseNameIndexMap = StreamUtils.mapToMap(releases, SoftwareRelease::name, SoftwareRelease::index);
         for (final BugReport ticket : tickets) {
             ticket.setOpeningVersionIndex(findReleaseIndexForDate(ticket.getCreationDate().toLocalDate(), releases));
             if (ticket.getResolutionDate() != null) {
                 ticket.setFixedVersionIndex(findReleaseIndexForDate(ticket.getResolutionDate().toLocalDate(), releases));
             }
-            ticket.getAffectedVersions().stream()
-                    .map(releaseNameIndexMap::get)
+            StreamUtils.mapToList(ticket.getAffectedVersions(), releaseNameIndexMap::get)
+                    .stream()
                     .filter(Objects::nonNull)
                     .min(Integer::compareTo)
                     .ifPresent(ticket::setIntroductionVersionIndex);
@@ -272,8 +273,9 @@ public class ProjectDatasetBuilder {
      * @return The calculated proportion median coefficient
      */
     private double calculateProportionCoefficient(final List<BugReport> tickets) {
-        final List<Double> pValues = tickets.stream()
-                .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
+        final List<Double> pValues = StreamUtils.filterToList(tickets,
+                t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
+                .stream()
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
                 .collect(Collectors.toList());

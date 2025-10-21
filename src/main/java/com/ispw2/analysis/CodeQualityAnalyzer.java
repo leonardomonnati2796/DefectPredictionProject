@@ -7,6 +7,7 @@ import com.ispw2.ConfigurationManager;
 import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.preprocessing.DatasetUtilities;
 import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.StreamUtils;
 import org.apache.commons.csv.CSVRecord;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
@@ -20,13 +21,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class CodeQualityAnalyzer {
 
@@ -196,9 +195,8 @@ public class CodeQualityAnalyzer {
         final String lastReleaseName = records.get(records.size() - 1).get(CSV_COL_RELEASE);
         LoggingPatterns.info(log, "  -> Searching within the last analyzed release: {}", lastReleaseName);
 
-        final List<CSVRecord> buggyMethodsInLastRelease = records.stream()
-                .filter(r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)))
-                .collect(Collectors.toList());
+        final List<CSVRecord> buggyMethodsInLastRelease = StreamUtils.filterToList(records,
+                r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)));
 
         LoggingPatterns.info(log, "  -> Found {} buggy methods in this release.", buggyMethodsInLastRelease.size());
 
@@ -207,8 +205,8 @@ public class CodeQualityAnalyzer {
             return Optional.empty();
         }
 
-        final Optional<CSVRecord> targetRecord = buggyMethodsInLastRelease.stream()
-                .max(Comparator.comparingDouble(r -> Double.parseDouble(r.get(aFeature))));
+        final Optional<CSVRecord> targetRecord = StreamUtils.findMaxBy(buggyMethodsInLastRelease,
+                r -> Double.parseDouble(r.get(aFeature)));
         
         if (targetRecord.isPresent() && log.isInfoEnabled()) {
             LoggingPatterns.info(log, "Identified AFMethod (buggy method with highest {}):", aFeature);
