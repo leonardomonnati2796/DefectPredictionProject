@@ -1,6 +1,7 @@
 package com.ispw2;
 
 import com.ispw2.analysis.MethodAnalysisTracker;
+import com.ispw2.analysis.CodeQualityMetrics;
 import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.BugReport;
@@ -25,8 +26,8 @@ public class ProjectDatasetBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectDatasetBuilder.class);
     private static final String[] CSV_HEADERS = {
-        "Project", "MethodName", "Release", "CodeSmells", "CyclomaticComplexity", "ParameterCount",
-        "Duplication", "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
+        "Project", "MethodName", "Release", CodeQualityMetrics.CODE_SMELLS, CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, CodeQualityMetrics.PARAMETER_COUNT,
+        CodeQualityMetrics.DUPLICATION, CodeQualityMetrics.NR, CodeQualityMetrics.NAUTH, CodeQualityMetrics.STMT_ADDED, CodeQualityMetrics.STMT_DELETED, CodeQualityMetrics.MAX_CHURN, CodeQualityMetrics.AVG_CHURN, CodeQualityMetrics.IS_BUGGY
     };
 
     private static final double PROPORTION_DEFAULT_COEFFICIENT = 1.5;
