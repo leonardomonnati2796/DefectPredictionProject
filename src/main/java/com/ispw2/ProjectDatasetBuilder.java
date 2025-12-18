@@ -13,6 +13,8 @@ import com.ispw2.util.MethodUtils;
 import com.ispw2.util.LoggingPatterns;
 import com.ispw2.util.FormattingUtils;
 import com.ispw2.util.StreamUtils;
+import com.ispw2.util.ApplicationConstants;
+import com.ispw2.util.CsvHeadersUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
@@ -31,15 +33,12 @@ import java.util.stream.Collectors;
 public class ProjectDatasetBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectDatasetBuilder.class);
-    private static final String[] CSV_HEADERS = {
-        "Project", "MethodName", "Release", CodeQualityMetrics.CODE_SMELLS, CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, CodeQualityMetrics.PARAMETER_COUNT,
-        CodeQualityMetrics.DUPLICATION, CodeQualityMetrics.NR, CodeQualityMetrics.NAUTH, CodeQualityMetrics.STMT_ADDED, CodeQualityMetrics.STMT_DELETED, CodeQualityMetrics.MAX_CHURN, CodeQualityMetrics.AVG_CHURN, CodeQualityMetrics.IS_BUGGY
-    };
+    private static final String[] CSV_HEADERS = CsvHeadersUtils.getMethodDatasetHeaders();
 
-    private static final double PROPORTION_DEFAULT_COEFFICIENT = 1.5;
-    private static final String BUGGY_YES = "yes";
-    private static final String BUGGY_NO = "no";
-    private static final String METHOD_KEY_SEPARATOR = "::";
+    private static final double PROPORTION_DEFAULT_COEFFICIENT = ApplicationConstants.PROPORTION_DEFAULT_COEFFICIENT;
+    private static final String BUGGY_YES = ApplicationConstants.BUGGY_YES;
+    private static final String BUGGY_NO = ApplicationConstants.BUGGY_NO;
+    private static final String METHOD_KEY_SEPARATOR = ApplicationConstants.METHOD_KEY_SEPARATOR;
 
     private final ConfigurationManager config;
     private final String projectName;

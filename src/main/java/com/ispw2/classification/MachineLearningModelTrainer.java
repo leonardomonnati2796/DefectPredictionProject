@@ -4,6 +4,7 @@ import com.ispw2.ConfigurationManager;
 import com.ispw2.util.LoggingUtils;
 import com.ispw2.util.LoggingPatterns;
 import com.ispw2.util.FormattingUtils;
+import com.ispw2.util.ApplicationConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -24,12 +25,8 @@ import java.util.List;
 
 public class MachineLearningModelTrainer {
     private static final Logger log = LoggerFactory.getLogger(MachineLearningModelTrainer.class);
-    private static final int NUM_FOLDS = 10;
-    private static final int NUM_REPEATS = 10;
-    
-    private static final String TABLE_SEPARATOR = "----------------------------------------------------------------------";
-    private static final String TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
-    private static final String TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
+    private static final int NUM_FOLDS = ApplicationConstants.NUM_FOLDS;
+    private static final int NUM_REPEATS = ApplicationConstants.NUM_REPEATS;
 
     private final ConfigurationManager config;
     private final String processedArffPath;
@@ -146,9 +143,9 @@ public class MachineLearningModelTrainer {
         Classifier bestClassifier = null;
         double bestAuc = 0.0;
         
-        LoggingPatterns.info(log, TABLE_SEPARATOR);
-        LoggingPatterns.info(log, String.format(TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
-        LoggingPatterns.info(log, TABLE_SEPARATOR);
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
+        LoggingPatterns.info(log, String.format(ApplicationConstants.TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
 
         for (final Classifier classifier : classifiers) {
             LoggingUtils.debugIfEnabled(log, "Evaluating classifier: {}", classifier.getClass().getSimpleName());
@@ -159,7 +156,7 @@ public class MachineLearningModelTrainer {
             final double recall = eval.weightedRecall();
             final double kappa = eval.kappa();
             
-            LoggingPatterns.info(log, String.format(TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
+            LoggingPatterns.info(log, String.format(ApplicationConstants.TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
 
             if (auc > bestAuc) {
                 LoggingUtils.debugIfEnabled(log, "New best classifier found: {} with AUC = {}", classifier.getClass().getSimpleName(), FormattingUtils.formatDecimal(auc, 3));
@@ -168,7 +165,7 @@ public class MachineLearningModelTrainer {
             }
         }
         
-        LoggingPatterns.info(log, TABLE_SEPARATOR);
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
         if (bestClassifier != null) {
             LoggingPatterns.info(log, "Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
         }

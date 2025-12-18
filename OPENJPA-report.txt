@@ -37,3 +37,4 @@ Skipping release 0.9.6 as no commit was found for it.
 Processing release 3/14: 0.9.7
 Skipping release 0.9.7 as no commit was found for it.
 Processing release 4/14: 1.0.0
+Processing release 5/14: 1.0.1

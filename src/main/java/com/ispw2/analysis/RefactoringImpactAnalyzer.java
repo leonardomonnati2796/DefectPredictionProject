@@ -4,6 +4,8 @@ import com.ispw2.preprocessing.DatasetUtilities;
 import com.ispw2.util.ExceptionUtils;
 import com.ispw2.util.LoggingUtils;
 import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.ApplicationConstants;
+import com.ispw2.util.TableFormattingUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -42,7 +44,7 @@ public class RefactoringImpactAnalyzer {
     public void runFullDatasetSimulation() throws IOException {
         this.datasetA = DatasetUtilities.loadArff(processedArffPath);
         this.datasetA.setClassIndex(this.datasetA.numAttributes() - 1);
-        log.info("[Milestone 2, Step 10] Starting What-If Simulation using AFeature: {}", this.aFeatureName);
+        log.info(ApplicationConstants.MILESTONE_2_STEP_10, this.aFeatureName);
         
         final Attribute aFeatureAttribute = datasetA.attribute(this.aFeatureName);
         if (aFeatureAttribute == null) {
@@ -50,7 +52,7 @@ public class RefactoringImpactAnalyzer {
             return;
         }
 
-        LoggingPatterns.logMilestone(log, 2, 11, "Training BClassifier on dataset A (BClassifierA)...");
+        LoggingPatterns.logMilestone(log, 2, 11, ApplicationConstants.MILESTONE_2_STEP_11);
         try {
             // Create a new instance of the same classifier type and train it on dataset A
             final Classifier bClassifierA = createAndTrainClassifierOnA();
@@ -65,7 +67,7 @@ public class RefactoringImpactAnalyzer {
             LoggingUtils.debugIfEnabled(log, "Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
             final Instances datasetB = createSyntheticDatasetB(datasetBplus, this.aFeatureName);
 
-        logSimulationSummaryTable(datasetA, datasetBplus, datasetB, datasetC, bClassifierA);
+        TableFormattingUtils.logSimulationSummaryTable(log, datasetA, datasetBplus, datasetB, datasetC, bClassifierA, this.aFeatureName);
         
         analyzePreliminaryQuestions(datasetBplus, datasetB, bClassifierA);
         
@@ -170,79 +172,53 @@ public class RefactoringImpactAnalyzer {
         }
     }
     
-    private void logSimulationSummaryTable(final Instances dataA, final Instances bPlus, final Instances b, final Instances c, final Classifier bClassifierA) {
-        LoggingPatterns.logMilestone(log, 2, 12, "Defect Prediction Summary Table:");
-
-        if (log.isInfoEnabled()) {
-            int defectsInA = DatasetUtilities.countDefective(bClassifierA, dataA);
-            int defectsInBplus = DatasetUtilities.countDefective(bClassifierA, bPlus);
-            int defectsInB = DatasetUtilities.countDefective(bClassifierA, b);
-            int defectsInC = DatasetUtilities.countDefective(bClassifierA, c);
-
-            String separator = "------------------------------------------------------------------";
-            String headerFormat = "| %-20s | %-15s | %-15s |";
-            String rowFormat = "| %-20s | %-15d | %-15d |";
-
-            log.info(separator);
-            log.info(String.format(headerFormat, "Dataset", "Total Instances", "Predicted Defects"));
-            log.info(separator);
-            log.info(String.format(rowFormat, "A (Full Dataset)", dataA.numInstances(), defectsInA));
-            log.info(String.format(rowFormat, "B+ (" + aFeatureName + " > 0)", bPlus.numInstances(), defectsInBplus));
-            log.info(String.format(rowFormat, "B (B+ with " + aFeatureName + "=0)", b.numInstances(), defectsInB));
-            log.info(String.format(rowFormat, "C (" + aFeatureName + " <= 0)", c.numInstances(), defectsInC));
-            log.info(separator);
-        }
-    }
 
     private void analyzePreliminaryQuestions(final Instances bPlus, final Instances b, final Classifier bClassifierA) {
-        log.info("[PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...");
+        log.info(ApplicationConstants.PRELIMINARY_QUESTIONS_HEADER);
         
         // Calculate predicted defects for B+ (original) and B (refactored)
         final int predictedDefectsInBplus = DatasetUtilities.countDefective(bClassifierA, bPlus);
         final int predictedDefectsInB = DatasetUtilities.countDefective(bClassifierA, b);
         
-        log.info("--- PRELIMINARY ANALYSIS ---");
+        log.info(ApplicationConstants.PRELIMINARY_ANALYSIS_HEADER);
         log.info("Predicted defects in B+ (original with {} > 0): {}", aFeatureName, predictedDefectsInBplus);
         log.info("Predicted defects in B (refactored with {} = 0): {}", aFeatureName, predictedDefectsInB);
         
         // Question 1: Did any feature positively correlated with bugginess increase in AFMethod2?
         if (predictedDefectsInB > predictedDefectsInBplus) {
-            log.warn("QUESTION 1: YES - Predicted defects INCREASED in AFMethod2 ({} vs {}).", 
-                predictedDefectsInB, predictedDefectsInBplus);
-            log.warn("This suggests we may NOT have improved maintainability in AFMethod2 compared to AFMethod.");
+            log.warn(ApplicationConstants.QUESTION_1_YES, predictedDefectsInB, predictedDefectsInBplus);
+            log.warn(ApplicationConstants.MAINTAINABILITY_NOT_IMPROVED);
         } else {
-            log.info("QUESTION 1: NO - Predicted defects did not increase in AFMethod2 ({} vs {}).", 
-                predictedDefectsInB, predictedDefectsInBplus);
+            log.info(ApplicationConstants.QUESTION_1_NO, predictedDefectsInB, predictedDefectsInBplus);
         }
         
         // Question 2: Did any feature negatively correlated with bugginess increase in AFMethod2?
         if (predictedDefectsInB < predictedDefectsInBplus) {
-            log.info("QUESTION 2: YES - Predicted defects DECREASED in AFMethod2 ({} vs {}).", 
-                predictedDefectsInB, predictedDefectsInBplus);
-            log.info("This suggests we MAY have improved maintainability by reducing {} from >0 to 0.", aFeatureName);
+            log.info(ApplicationConstants.QUESTION_2_YES, predictedDefectsInB, predictedDefectsInBplus);
+            log.info(ApplicationConstants.MAINTAINABILITY_MAY_IMPROVED, aFeatureName);
         } else if (predictedDefectsInB == predictedDefectsInBplus) {
-            log.info("QUESTION 2: NO CHANGE - Predicted defects remained the same in AFMethod2 ({}).", 
-                predictedDefectsInB);
-            log.info("This suggests the refactoring had no impact on predicted defect probability.");
+            log.info(ApplicationConstants.QUESTION_2_NO_CHANGE, predictedDefectsInB);
+            log.info(ApplicationConstants.MAINTAINABILITY_NO_IMPACT);
         } else {
-            log.warn("QUESTION 2: NO - Predicted defects increased in AFMethod2, suggesting maintainability may have worsened.");
+            log.warn(ApplicationConstants.QUESTION_2_NO);
+            log.warn(ApplicationConstants.MAINTAINABILITY_WORSENED);
         }
         
-        log.info("--- END PRELIMINARY ANALYSIS ---");
+        log.info(ApplicationConstants.PRELIMINARY_ANALYSIS_FOOTER);
     }
 
     private void analyzeResults(final Instances bPlus, final Instances b, final Classifier bClassifierA) {
-        log.info("[Milestone 2, Step 13] Calculating final metrics based on custom formulas...");
+        log.info(ApplicationConstants.MILESTONE_2_STEP_13);
 
         final int actualDefectsInA = DatasetUtilities.countActualDefective(this.datasetA);
         final int actualDefectsInBplus = DatasetUtilities.countActualDefective(bPlus);
         final int predictedDefectsInB = DatasetUtilities.countDefective(bClassifierA, b);
 
-        LoggingUtils.debugIfEnabled(log, "--- Formula Components ---");
+        LoggingUtils.debugIfEnabled(log, ApplicationConstants.FORMULA_COMPONENTS_HEADER);
         LoggingUtils.debugIfEnabled(log, "Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
         LoggingUtils.debugIfEnabled(log, "Predicted Defects in B (expected B) = {}", predictedDefectsInB);
         LoggingUtils.debugIfEnabled(log, "Actual Defects in A (actual A) = {}", actualDefectsInA);
-        LoggingUtils.debugIfEnabled(log, "--------------------------");
+        LoggingUtils.debugIfEnabled(log, ApplicationConstants.FORMULA_COMPONENTS_FOOTER);
 
         double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
 

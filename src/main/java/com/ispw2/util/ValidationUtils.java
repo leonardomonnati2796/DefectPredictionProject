@@ -76,7 +76,7 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that a collection is not null or empty.
+     * Validates that a collection is not null and not empty.
      * 
      * @param collection The collection to validate
      * @param collectionName The name of the collection for error reporting
@@ -85,12 +85,12 @@ public final class ValidationUtils {
      */
     public static boolean isValidCollection(final Collection<?> collection, final String collectionName, final Logger logger) {
         if (collection == null) {
-            logger.warn("{} is null", collectionName);
+            logger.warn("Collection '{}' is null", collectionName);
             return false;
         }
         
         if (collection.isEmpty()) {
-            logger.warn("{} is empty", collectionName);
+            logger.warn("Collection '{}' is empty", collectionName);
             return false;
         }
         
@@ -98,7 +98,7 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that a map is not null or empty.
+     * Validates that a map is not null and not empty.
      * 
      * @param map The map to validate
      * @param mapName The name of the map for error reporting
@@ -107,12 +107,12 @@ public final class ValidationUtils {
      */
     public static boolean isValidMap(final Map<?, ?> map, final String mapName, final Logger logger) {
         if (map == null) {
-            logger.warn("{} is null", mapName);
+            logger.warn("Map '{}' is null", mapName);
             return false;
         }
         
         if (map.isEmpty()) {
-            logger.warn("{} is empty", mapName);
+            logger.warn("Map '{}' is empty", mapName);
             return false;
         }
         
@@ -120,21 +120,46 @@ public final class ValidationUtils {
     }
 
     /**
-     * Validates that a string is not null or empty.
+     * Validates that a string is not null, not empty, and not blank.
      * 
-     * @param str The string to validate
+     * @param value The string to validate
      * @param fieldName The name of the field for error reporting
      * @param logger The logger instance for error reporting
      * @return true if string is valid, false otherwise
      */
-    public static boolean isValidString(final String str, final String fieldName, final Logger logger) {
-        if (str == null) {
-            logger.warn("{} is null", fieldName);
+    public static boolean isValidString(final String value, final String fieldName, final Logger logger) {
+        if (value == null) {
+            logger.warn("String '{}' is null", fieldName);
             return false;
         }
         
-        if (str.trim().isEmpty()) {
-            logger.warn("{} is empty", fieldName);
+        if (value.trim().isEmpty()) {
+            logger.warn("String '{}' is empty or blank", fieldName);
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Validates that a number is not null and within a valid range.
+     * 
+     * @param number The number to validate
+     * @param fieldName The name of the field for error reporting
+     * @param minValue The minimum allowed value (inclusive)
+     * @param maxValue The maximum allowed value (inclusive)
+     * @param logger The logger instance for error reporting
+     * @return true if number is valid, false otherwise
+     */
+    public static boolean isValidNumber(final Number number, final String fieldName, final double minValue, final double maxValue, final Logger logger) {
+        if (number == null) {
+            logger.warn("Number '{}' is null", fieldName);
+            return false;
+        }
+        
+        final double value = number.doubleValue();
+        if (value < minValue || value > maxValue) {
+            logger.warn("Number '{}' value {} is outside valid range [{}, {}]", fieldName, value, minValue, maxValue);
             return false;
         }
         
@@ -151,7 +176,7 @@ public final class ValidationUtils {
      */
     public static boolean isValidObject(final Object obj, final String fieldName, final Logger logger) {
         if (obj == null) {
-            logger.warn("{} is null", fieldName);
+            logger.warn("Object '{}' is null", fieldName);
             return false;
         }
         
@@ -168,12 +193,12 @@ public final class ValidationUtils {
      */
     public static boolean isValidPositiveNumber(final Number number, final String fieldName, final Logger logger) {
         if (number == null) {
-            logger.warn("{} is null", fieldName);
+            logger.warn("Number '{}' is null", fieldName);
             return false;
         }
         
         if (number.doubleValue() <= 0) {
-            logger.warn("{} is not positive: {}", fieldName, number);
+            logger.warn("Number '{}' is not positive: {}", fieldName, number);
             return false;
         }
         
@@ -190,12 +215,12 @@ public final class ValidationUtils {
      */
     public static boolean isValidNonNegativeNumber(final Number number, final String fieldName, final Logger logger) {
         if (number == null) {
-            logger.warn("{} is null", fieldName);
+            logger.warn("Number '{}' is null", fieldName);
             return false;
         }
         
         if (number.doubleValue() < 0) {
-            logger.warn("{} is negative: {}", fieldName, number);
+            logger.warn("Number '{}' is negative: {}", fieldName, number);
             return false;
         }
         

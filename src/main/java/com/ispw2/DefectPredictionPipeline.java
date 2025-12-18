@@ -12,6 +12,7 @@ import com.ispw2.util.LoggingUtils;
 import com.ispw2.util.FileUtils;
 import com.ispw2.util.LoggingPatterns;
 import com.ispw2.util.ValidationUtils;
+import com.ispw2.util.ApplicationConstants;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,24 +41,24 @@ public class DefectPredictionPipeline {
     );
 
     // Directory names
-    private static final String DATASETS_DIR_NAME = "datasets";
-    private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
-    private static final String AFMETHOD_REFACTORED_DIR = "AFMethod_refactored";
+    private static final String DATASETS_DIR_NAME = ApplicationConstants.DATASETS_DIR_NAME;
+    private static final String GIT_PROJECTS_DIR_NAME = ApplicationConstants.GIT_PROJECTS_DIR_NAME;
+    private static final String AFMETHOD_REFACTORED_DIR = ApplicationConstants.AFMETHOD_REFACTORED_DIR;
     
     // File extensions
-    private static final String CSV_EXTENSION = ".csv";
-    private static final String ARFF_EXTENSION = ".arff";
-    private static final String MODEL_EXTENSION = "_best.model";
-    private static final String AFMETHOD_EXTENSION = "_AFMethod.txt";
-    private static final String AFMETHOD_REFACTORED_EXTENSION = "_AFMethod_refactored.txt";
-    private static final String PROCESSED_SUFFIX = "_processed";
+    private static final String CSV_EXTENSION = ApplicationConstants.CSV_EXTENSION;
+    private static final String ARFF_EXTENSION = ApplicationConstants.ARFF_EXTENSION;
+    private static final String MODEL_EXTENSION = ApplicationConstants.MODEL_EXTENSION;
+    private static final String AFMETHOD_EXTENSION = ApplicationConstants.AFMETHOD_EXTENSION;
+    private static final String AFMETHOD_REFACTORED_EXTENSION = ApplicationConstants.AFMETHOD_REFACTORED_EXTENSION;
+    private static final String PROCESSED_SUFFIX = ApplicationConstants.PROCESSED_SUFFIX;
     
     // Error messages
-    private static final String FATAL_IO_ERROR_MSG = "A fatal I/O error occurred while setting up directories.";
-    private static final String PARENT_DIR_ERROR_MSG = "Cannot determine parent directory. Please run from within the project folder.";
-    private static final String CLASSIFIER_ERROR_MSG = "Failed to obtain a valid classifier for project {}";
-    private static final String ACTIONABLE_FEATURE_ERROR_MSG = "Failed to find actionable feature for project {}";
-    private static final String PREPROCESSING_ERROR_MSG = "Failed to preprocess data";
+    private static final String FATAL_IO_ERROR_MSG = ApplicationConstants.FATAL_IO_ERROR_MSG;
+    private static final String PARENT_DIR_ERROR_MSG = ApplicationConstants.PARENT_DIR_ERROR_MSG;
+    private static final String CLASSIFIER_ERROR_MSG = ApplicationConstants.CLASSIFIER_ERROR_MSG;
+    private static final String ACTIONABLE_FEATURE_ERROR_MSG = ApplicationConstants.ACTIONABLE_FEATURE_ERROR_MSG;
+    private static final String PREPROCESSING_ERROR_MSG = ApplicationConstants.PREPROCESSING_ERROR_MSG;
 
     private static final class ProjectContext {
         private final ConfigurationManager config;
