@@ -42,9 +42,10 @@ public class RefactoringImpactAnalyzer {
         // Prefer balanced dataset if available for more accurate predictions
         final String balancedPath = processedArffPath.replace(".arff", "_balanced.arff");
         final File balancedFile = new File(balancedPath);
-        final String dataPathToUse = balancedFile.exists() ? balancedPath : processedArffPath;
+        final boolean hasBalancedDataset = balancedFile.exists();
+        final String dataPathToUse = hasBalancedDataset ? balancedPath : processedArffPath;
         
-        if (balancedFile.exists()) {
+        if (hasBalancedDataset) {
             log.info("Using balanced dataset for simulation: {}", balancedPath);
         }
         
@@ -308,64 +309,80 @@ public class RefactoringImpactAnalyzer {
         final boolean hasThreshold = this.decisionThreshold > 0.0;
         final int predictedDefectsInB = hasThreshold ? DatasetUtilities.countDefective(bClassifierA, b, this.decisionThreshold) : DatasetUtilities.countDefective(bClassifierA, b);
 
-        if(log.isDebugEnabled()){
+        logFormulaComponents(actualDefectsInA, actualDefectsInBplus, predictedDefectsInB);
+
+        double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
+
+        computeAndLogDrop(actualDefectsInBplus, predictedDefectsInB, numerator);
+        computeAndLogReduction(actualDefectsInA, actualDefectsInBplus, predictedDefectsInB, numerator);
+    }
+
+    private void logFormulaComponents(final int actualDefectsInA, final int actualDefectsInBplus, final int predictedDefectsInB) {
+        if (log.isDebugEnabled()) {
             log.debug("--- Formula Components ---");
             log.debug("Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
             log.debug("Predicted Defects in B (expected B) = {}", predictedDefectsInB);
             log.debug("Actual Defects in A (actual A) = {}", actualDefectsInA);
             log.debug("--------------------------");
         }
+    }
 
-        double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
-
-        if (actualDefectsInBplus > 0) {
-            double drop = numerator / actualDefectsInBplus;
-            if (log.isInfoEnabled()) {
-                log.info("Formula 1 (drop) = (actual B+ - expected B) / actual B+ = ({} - {}) / {} = {}",
-                    actualDefectsInBplus, predictedDefectsInB, actualDefectsInBplus, String.format("%.3f", drop));
-                log.info("ANSWER 1 (drop): The calculated metric value is {}.", String.format("%.3f", drop));
-
-                // Rescale drop from [-1, 1] to [0, 1] to keep the metric positive while
-                // preserving the ordering: 0 = worst (strong worsening), 0.5 = no change, 1 = best.
-                double scaledDrop = (drop + 1.0) / 2.0;
-                // Clamp for numerical safety
-                scaledDrop = Math.max(0.0, Math.min(1.0, scaledDrop));
-                log.info("ANSWER 1 (drop, rescaled to [0,1]): {}", String.format("%.3f", scaledDrop));
-                if (drop < 0.0) {
-                    log.info("INTERPRETATION 1: Value < 0 (before rescaling) indicates that the refactoring would increase defects (worse than original).");
-                } else if (drop == 0.0) {
-                    log.info("INTERPRETATION 1: Value = 0 (before rescaling) indicates no expected change in defects for refactoring B+ to B.");
-                } else {
-                    log.info("INTERPRETATION 1: Value > 0 (before rescaling) indicates an expected reduction in defects after refactoring.");
-                }
-            }
-        } else {
+    private void computeAndLogDrop(final int actualDefectsInBplus, final int predictedDefectsInB, final double numerator) {
+        if (actualDefectsInBplus <= 0) {
             log.warn("Cannot calculate 'drop' metric because there are no actual defects in the B+ dataset (division by zero).");
+            return;
         }
 
-        if (actualDefectsInA > 0) {
-            double reduction = numerator / actualDefectsInA;
-            if (log.isInfoEnabled()) {
-                log.info("Formula 2 (reduction) = (actual B+ - expected B) / actual A = ({} - {}) / {} = {}",
-                    actualDefectsInBplus, predictedDefectsInB, actualDefectsInA, String.format("%.3f", reduction));
-                log.info("ANSWER 2 (reduction): The calculated metric value is {}.", String.format("%.3f", reduction));
+        final double drop = numerator / actualDefectsInBplus;
+        if (!log.isInfoEnabled()) {
+            return;
+        }
 
-                // Rescale reduction from approximately [-1, 1] to [0, 1] to keep the metric positive
-                // while preserving the ordering: 0 = worst, 0.5 = no change, 1 = best.
-                double scaledReduction = (reduction + 1.0) / 2.0;
-                // Clamp for numerical safety
-                scaledReduction = Math.max(0.0, Math.min(1.0, scaledReduction));
-                log.info("ANSWER 2 (reduction, rescaled to [0,1]): {}", String.format("%.3f", scaledReduction));
-                if (reduction < 0.0) {
-                    log.info("INTERPRETATION 2: Value < 0 (before rescaling) indicates that the refactoring would increase defects at system level.");
-                } else if (reduction == 0.0) {
-                    log.info("INTERPRETATION 2: Value = 0 (before rescaling) indicates no expected change in overall defects.");
-                } else {
-                    log.info("INTERPRETATION 2: Value > 0 (before rescaling) indicates an expected global reduction in defects after refactoring.");
-                }
-            }
+        log.info("Formula 1 (drop) = (actual B+ - expected B) / actual B+ = ({} - {}) / {} = {}",
+            actualDefectsInBplus, predictedDefectsInB, actualDefectsInBplus, String.format("%.3f", drop));
+        log.info("ANSWER 1 (drop): The calculated metric value is {}.", String.format("%.3f", drop));
+
+        double scaledDrop = (drop + 1.0) / 2.0;
+        scaledDrop = Math.max(0.0, Math.min(1.0, scaledDrop));
+        log.info("ANSWER 1 (drop, rescaled to [0,1]): {}", String.format("%.3f", scaledDrop));
+
+        if (drop < 0.0) {
+            log.info("INTERPRETATION 1: Value < 0 (before rescaling) indicates that the refactoring would increase defects (worse than original).");
+        } else if (drop == 0.0) {
+            log.info("INTERPRETATION 1: Value = 0 (before rescaling) indicates no expected change in defects for refactoring B+ to B.");
         } else {
+            log.info("INTERPRETATION 1: Value > 0 (before rescaling) indicates an expected reduction in defects after refactoring.");
+        }
+    }
+
+    private void computeAndLogReduction(final int actualDefectsInA,
+                                        final int actualDefectsInBplus,
+                                        final int predictedDefectsInB,
+                                        final double numerator) {
+        if (actualDefectsInA <= 0) {
             log.warn("Cannot calculate 'reduction' metric because there are no actual defects in the full dataset (division by zero).");
+            return;
+        }
+
+        final double reduction = numerator / actualDefectsInA;
+        if (!log.isInfoEnabled()) {
+            return;
+        }
+
+        log.info("Formula 2 (reduction) = (actual B+ - expected B) / actual A = ({} - {}) / {} = {}",
+            actualDefectsInBplus, predictedDefectsInB, actualDefectsInA, String.format("%.3f", reduction));
+        log.info("ANSWER 2 (reduction): The calculated metric value is {}.", String.format("%.3f", reduction));
+
+        double scaledReduction = (reduction + 1.0) / 2.0;
+        scaledReduction = Math.max(0.0, Math.min(1.0, scaledReduction));
+        log.info("ANSWER 2 (reduction, rescaled to [0,1]): {}", String.format("%.3f", scaledReduction));
+
+        if (reduction < 0.0) {
+            log.info("INTERPRETATION 2: Value < 0 (before rescaling) indicates that the refactoring would increase defects at system level.");
+        } else if (reduction == 0.0) {
+            log.info("INTERPRETATION 2: Value = 0 (before rescaling) indicates no expected change in overall defects.");
+        } else {
+            log.info("INTERPRETATION 2: Value > 0 (before rescaling) indicates an expected global reduction in defects after refactoring.");
         }
     }
 }

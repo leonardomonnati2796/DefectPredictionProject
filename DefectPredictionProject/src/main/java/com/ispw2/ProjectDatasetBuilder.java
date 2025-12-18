@@ -1,6 +1,7 @@
 package com.ispw2;
 
 import com.ispw2.analysis.MethodAnalysisTracker;
+import com.ispw2.analysis.CodeQualityMetrics;
 import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.BugReport;
@@ -24,8 +25,9 @@ public class ProjectDatasetBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectDatasetBuilder.class);
     private static final String[] CSV_HEADERS = {
-        "Project", "MethodName", "Release", "CodeSmells", "CyclomaticComplexity", "ParameterCount",
-        "NestingDepth", "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
+        "Project", "MethodName", "Release", "CodeSmells",
+        CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, CodeQualityMetrics.PARAMETER_COUNT,
+        CodeQualityMetrics.NESTING_DEPTH, "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
     };
 
     private static final double PROPORTION_DEFAULT_COEFFICIENT = 1.5;
@@ -147,8 +149,7 @@ public class ProjectDatasetBuilder {
             log.warn("Detected and removed {} duplicate rows (same MethodName + Release).", duplicateCount);
         }
 
-        final List<String[]> pruned = pruneLowVarianceFeatureColumns(csvData);
-        return pruned;
+        return pruneLowVarianceFeatureColumns(csvData);
     }
 
     /**
@@ -166,9 +167,9 @@ public class ProjectDatasetBuilder {
         final Map<String, Number> features = method.getFeatures();
 
         // Filter-out trivial methods (approximate accessors/toString) to reduce noise
-        final int cyclo = features.getOrDefault("CyclomaticComplexity", 0).intValue();
-        final int params = features.getOrDefault("ParameterCount", 0).intValue();
-        final int nesting = features.getOrDefault("NestingDepth", 0).intValue();
+        final int cyclo = features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).intValue();
+        final int params = features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).intValue();
+        final int nesting = features.getOrDefault(CodeQualityMetrics.NESTING_DEPTH, 0).intValue();
         if (cyclo <= 1 && params <= 1 && nesting <= 1) {
             return null;
         }
@@ -177,9 +178,9 @@ public class ProjectDatasetBuilder {
         return new String[]{
             this.projectName, methodName, release.name(),
             features.getOrDefault("CodeSmells", 0).toString(),
-            features.getOrDefault("CyclomaticComplexity", 0).toString(),
-            features.getOrDefault("ParameterCount", 0).toString(),
-            features.getOrDefault("NestingDepth", 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
+            features.getOrDefault(CodeQualityMetrics.NESTING_DEPTH, 0).toString(),
             features.getOrDefault("NR", 0).toString(),
             features.getOrDefault("NAuth", 0).toString(),
             features.getOrDefault("stmtAdded", 0).toString(),
@@ -195,47 +196,87 @@ public class ProjectDatasetBuilder {
      * Keeps label and identifier columns intact.
      */
     private List<String[]> pruneLowVarianceFeatureColumns(final List<String[]> data) {
-        if (data.isEmpty()) return data;
+        if (data.isEmpty()) {
+            return data;
+        }
+
         final String[] header = data.get(0);
         final int nCols = header.length;
-        // Indices of feature columns between MethodName/Release and IsBuggy
-        // Header: Project(0), MethodName(1), Release(2), [features...], IsBuggy(last)
         final int firstFeatureIdx = 3;
-        final int lastFeatureIdx = nCols - 2; // before IsBuggy
+        final int lastFeatureIdx = nCols - 2; // column before IsBuggy
+        final int rowCount = data.size() - 1;
 
         final boolean[] drop = new boolean[nCols];
-        final int rowCount = data.size() - 1;
         for (int c = firstFeatureIdx; c <= lastFeatureIdx; c++) {
-            int zeroOrMissing = 0;
-            for (int r = 1; r < data.size(); r++) {
-                final String v = data.get(r)[c];
-                if (v == null || v.isEmpty()) { zeroOrMissing++; continue; }
-                try {
-                    double d = Double.parseDouble(v.replace(',', '.'));
-                    if (d == 0.0) zeroOrMissing++;
-                } catch (NumberFormatException ex) {
-                    // treat unparsable as missing
-                    zeroOrMissing++;
-                }
+            drop[c] = shouldDropColumn(data, c, rowCount, header[c]);
+        }
+
+        final List<Integer> keptIdx = buildKeptColumnIndices(nCols, firstFeatureIdx, drop);
+        return buildPrunedDataset(data, keptIdx);
+    }
+
+    /**
+     * Decides whether a column should be dropped based on the proportion of zero/missing values.
+     */
+    private boolean shouldDropColumn(final List<String[]> data, final int columnIndex, final int rowCount, final String columnName) {
+        int zeroOrMissing = 0;
+        for (int r = 1; r < data.size(); r++) {
+            final String v = data.get(r)[columnIndex];
+            if (v == null || v.isEmpty()) {
+                zeroOrMissing++;
+                continue;
             }
-            double ratio = (rowCount > 0) ? ((double) zeroOrMissing) / rowCount : 0.0;
-            if (ratio >= 0.95) {
-                drop[c] = true;
-                log.warn("Dropping low-variance feature column: {} (zero/missing ratio = {}%)", header[c], String.format(java.util.Locale.US, "%.2f", ratio * 100));
+            if (isZeroNumericValue(v)) {
+                zeroOrMissing++;
             }
         }
 
-        // Build pruned header and rows
+        final double ratio = (rowCount > 0) ? ((double) zeroOrMissing) / rowCount : 0.0;
+        if (ratio >= 0.95) {
+            log.warn(
+                "Dropping low-variance feature column: {} (zero/missing ratio = {}%)",
+                columnName,
+                String.format(java.util.Locale.US, "%.2f", ratio * 100)
+            );
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Parses a numeric string and returns true if it represents zero.
+     * Unparsable values are treated as missing/zero for the purpose of pruning.
+     */
+    private boolean isZeroNumericValue(final String rawValue) {
+        try {
+            final double d = Double.parseDouble(rawValue.replace(',', '.'));
+            return d == 0.0;
+        } catch (NumberFormatException ex) {
+            // treat unparsable as missing
+            return true;
+        }
+    }
+
+    /**
+     * Builds the list of column indices to keep, always preserving identifiers and label columns.
+     */
+    private List<Integer> buildKeptColumnIndices(final int nCols, final int firstFeatureIdx, final boolean[] drop) {
         final List<Integer> keptIdx = new ArrayList<>();
         for (int c = 0; c < nCols; c++) {
-            // Always keep Project, MethodName, Release, IsBuggy
-            if (c < firstFeatureIdx || c == nCols - 1 || !drop[c]) {
+            final boolean isIdentifierColumn = c < firstFeatureIdx || c == nCols - 1;
+            if (isIdentifierColumn || !drop[c]) {
                 keptIdx.add(c);
             }
         }
+        return keptIdx;
+    }
 
+    /**
+     * Builds the pruned dataset (header + rows) given the indices of columns to keep.
+     */
+    private List<String[]> buildPrunedDataset(final List<String[]> data, final List<Integer> keptIdx) {
         final List<String[]> pruned = new ArrayList<>();
-        pruned.add(extractColumns(header, keptIdx));
+        pruned.add(extractColumns(data.get(0), keptIdx));
         for (int r = 1; r < data.size(); r++) {
             pruned.add(extractColumns(data.get(r), keptIdx));
         }

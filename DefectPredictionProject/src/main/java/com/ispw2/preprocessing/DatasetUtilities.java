@@ -138,7 +138,10 @@ public final class DatasetUtilities {
                 final double[] distribution = model.distributionForInstance(instance);
                 final double probYes = distribution[buggyClassIndex];
                 if (probYes + DECISION_EPS >= yesThreshold) defectiveCount++;
-            } catch (Exception ignored) { }
+            } catch (Exception e) {
+                // If classification fails for a single instance, skip it but continue counting others.
+                log.debug("Skipping instance during threshold-based defect count due to error: {}", e.getMessage());
+            }
         }
         return defectiveCount;
     }

@@ -22,6 +22,7 @@ import java.util.Map;
  */
 public class MethodFeatureComparator {
     private static final Logger log = LoggerFactory.getLogger(MethodFeatureComparator.class);
+    private static final String IMPROVEMENT_LOG_FORMAT = "  {}: {} -> {} (improvement: {})";
 
     /**
      * Compares the features of original and refactored methods.
@@ -84,7 +85,10 @@ public class MethodFeatureComparator {
                 features.putAll(CodeMetricsCalculator.calculateAll(callable));
                 return features;
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            // Parsing as a standalone method snippet failed – fall back to parsing as full compilation unit.
+            log.debug("Failed to parse method snippet as dummy class: {}", e.getMessage());
+        }
 
         // Fallback: try to parse as a full compilation unit (in case file already contains class)
         try {
@@ -93,7 +97,10 @@ public class MethodFeatureComparator {
             if (callable2 != null) {
                 features.putAll(CodeMetricsCalculator.calculateAll(callable2));
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            // Parsing as full compilation unit also failed; return whatever metrics we collected so far (likely empty).
+            log.debug("Failed to parse method code as full compilation unit: {}", e.getMessage());
+        }
         return features;
     }
 
@@ -127,7 +134,7 @@ public class MethodFeatureComparator {
                 final double ov = toDouble(original.get(k));
                 final double rv = toDouble(refactored.get(k));
                 final double delta = ov - rv;
-                log.info("  {}: {} -> {} (improvement: {})", k, fmt(ov), fmt(rv), fmt(delta));
+                log.info(IMPROVEMENT_LOG_FORMAT, k, fmt(ov), fmt(rv), fmt(delta));
             }
         } catch (final IOException e) {
             log.error("Error comparing static metrics", e);
@@ -220,7 +227,7 @@ public class MethodFeatureComparator {
                 final double refactoredValue = refactored.value(attr);
                 final double improvement = originalValue - refactoredValue;
                 
-                log.info("  {}: {} -> {} (improvement: {})", 
+                log.info(IMPROVEMENT_LOG_FORMAT,
                     attr.name(), fmt(originalValue), fmt(refactoredValue), fmt(improvement));
             }
         }
@@ -280,7 +287,7 @@ public class MethodFeatureComparator {
                     }
                     
                     final double improvement = originalValue - refactoredValue;
-                    log.info("  {}: {} -> {} (improvement: {})", 
+                    log.info(IMPROVEMENT_LOG_FORMAT,
                         featureName, fmt(originalValue), fmt(refactoredValue), fmt(improvement));
                 } catch (final NumberFormatException e) {
                     log.debug("Could not parse numeric value for feature {}: {}", featureName, originalData.get(featureName));
