@@ -10,6 +10,7 @@ public class ClassifierTrainingException extends Exception {
         super(message);
     }
     
+    
     public ClassifierTrainingException(String message, Throwable cause) {
         super(message, cause);
     }
