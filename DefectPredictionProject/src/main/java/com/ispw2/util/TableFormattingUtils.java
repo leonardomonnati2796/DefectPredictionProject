@@ -76,10 +76,10 @@ public final class TableFormattingUtils {
         if (!logger.isInfoEnabled()) return;
         
         // Calculate defect counts
-        final int defectsInA = DatasetUtilities.countDefective(bClassifierA, dataA);
-        final int defectsInBplus = DatasetUtilities.countDefective(bClassifierA, bPlus);
-        final int defectsInB = DatasetUtilities.countDefective(bClassifierA, b);
-        final int defectsInC = DatasetUtilities.countDefective(bClassifierA, c);
+        final long defectsInA = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, dataA));
+        final long defectsInBplus = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, bPlus));
+        final long defectsInB = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, b));
+        final long defectsInC = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, c));
 
         logger.info(COMPACT_SEPARATOR);
         logger.info(String.format(SIMULATION_TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));

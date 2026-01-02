@@ -129,6 +129,7 @@
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
                                         <exclude>META-INF/versions/9/module-info.class</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                     </excludes>
                                 </filter>
                                 <filter>
@@ -152,6 +153,15 @@
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>3.10.0.2594</version>
+            </plugin>
+            <!-- OpenRewrite plugin to apply Java 21 migration recipes (temporary) -->
+            <plugin>
+                <groupId>org.openrewrite.maven</groupId>
+                <artifactId>rewrite-maven-plugin</artifactId>
+                <version>5.47.3</version>
+                <configuration>
+                    <configFile>${project.basedir}/rewrite.yml</configFile>
+                </configuration>
             </plugin>
         </plugins>
     </build>

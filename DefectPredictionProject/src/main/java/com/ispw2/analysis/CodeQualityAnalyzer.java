@@ -6,6 +6,8 @@ import com.github.javaparser.ast.body.CallableDeclaration;
 import com.ispw2.ConfigurationManager;
 import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.preprocessing.DatasetUtilities;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.StreamUtils;
 import org.apache.commons.csv.CSVRecord;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
@@ -19,12 +21,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class CodeQualityAnalyzer {
 
@@ -46,7 +47,7 @@ public class CodeQualityAnalyzer {
             this.signature = signature;
         }
 
-        public String filePath() {
+        public String getFilePath() {
             return filePath;
         }
 
@@ -104,7 +105,7 @@ public class CodeQualityAnalyzer {
         this.originalCsvPath = originalCsvPath;
         this.processedArffPath = processedArffPath;
         this.git = git;
-        this.releaseCommits = releaseCommits;
+        this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
     }
 
     /**
@@ -116,7 +117,7 @@ public class CodeQualityAnalyzer {
      * @throws IOException If analysis fails
      */
     public String findAndSaveActionableMethod() throws IOException {
-        log.info("Starting data analysis to find actionable method...");
+        LoggingPatterns.info(log, "Starting data analysis to find actionable method...");
         try {
             final Instances data = DatasetUtilities.loadArff(processedArffPath);
             data.setClassIndex(data.numAttributes() - 1);
@@ -130,7 +131,7 @@ public class CodeQualityAnalyzer {
                 log.warn("Skipping file saving as no AFMethod was identified.");
             }
             
-            log.info("Data analysis completed.");
+            LoggingPatterns.info(log, "Data analysis completed.");
             return aFeature;
         } catch (Exception e) {
             throw new IOException("Failed during data analysis.", e);
@@ -145,7 +146,7 @@ public class CodeQualityAnalyzer {
      * @throws Exception If feature selection fails
      */
     private String findTopActionableFeature(final Instances data) throws Exception {
-        log.info("[Milestone 2, Step 4 & 5] Finding Top Actionable Feature...");
+        LoggingPatterns.logMilestone(log, 2, "Finding Top Actionable Feature...");
         final AttributeSelection selector = new AttributeSelection();
         selector.setEvaluator(new InfoGainAttributeEval());
         selector.setSearch(new Ranker());
@@ -165,7 +166,7 @@ public class CodeQualityAnalyzer {
         for (final double[] rankedAttribute : selector.rankedAttributes()) {
             final String featureName = data.attribute((int) rankedAttribute[0]).name();
             if (actionableFeatures.contains(featureName)) {
-                log.info("Identified Top Actionable Feature (AFeature): {}", featureName);
+                LoggingPatterns.info(log, "Identified Top Actionable Feature (AFeature): {}", featureName);
                 return featureName;
             }
         }
@@ -182,7 +183,7 @@ public class CodeQualityAnalyzer {
      * @throws IOException If CSV reading fails
      */
     private Optional<CSVRecord> findTargetMethodRecord(final String aFeature) throws IOException {
-        log.info("[Milestone 2, Step 6] Identifying Target Method (AFMethod)...");
+        LoggingPatterns.logMilestone(log, 2, 6, "Identifying Target Method (AFMethod)...");
         log.debug("Searching for target method using AFeature: {}", aFeature);
         
         final List<CSVRecord> records = DatasetUtilities.readCsv(originalCsvPath);
@@ -192,29 +193,28 @@ public class CodeQualityAnalyzer {
         }
 
         final String lastReleaseName = records.get(records.size() - 1).get(CSV_COL_RELEASE);
-        log.info("  -> Searching within the last analyzed release: {}", lastReleaseName);
+        LoggingPatterns.info(log, "  -> Searching within the last analyzed release: {}", lastReleaseName);
 
-        final List<CSVRecord> buggyMethodsInLastRelease = records.stream()
-                .filter(r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)))
-                .collect(Collectors.toList());
+        final List<CSVRecord> buggyMethodsInLastRelease = StreamUtils.filterToList(records,
+                r -> r.get(CSV_COL_RELEASE).equals(lastReleaseName) && "yes".equalsIgnoreCase(r.get(CSV_COL_IS_BUGGY)));
 
-        log.info("  -> Found {} buggy methods in this release.", buggyMethodsInLastRelease.size());
+        LoggingPatterns.info(log, "  -> Found {} buggy methods in this release.", buggyMethodsInLastRelease.size());
 
         if (buggyMethodsInLastRelease.isEmpty()) {
             log.warn("  -> No buggy methods found in the last release. Cannot identify AFMethod.");
             return Optional.empty();
         }
 
-        final Optional<CSVRecord> targetRecord = buggyMethodsInLastRelease.stream()
-                .max(Comparator.comparingDouble(r -> Double.parseDouble(r.get(aFeature))));
+        final Optional<CSVRecord> targetRecord = StreamUtils.findMaxBy(buggyMethodsInLastRelease,
+                r -> Double.parseDouble(r.get(aFeature)));
         
         if (targetRecord.isPresent() && log.isInfoEnabled()) {
-            log.info("Identified AFMethod (buggy method with highest {}):", aFeature);
+            LoggingPatterns.info(log, "Identified AFMethod (buggy method with highest {}):", aFeature);
             if (log.isDebugEnabled()){
                 log.debug("  -> Full Record: {}", targetRecord.get().toMap());
             } else {
-                log.info("  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
-                log.info("  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
+                LoggingPatterns.info(log, "  -> MethodName: {}", targetRecord.get().get(CSV_COL_METHOD_NAME));
+                LoggingPatterns.info(log, "  -> {} Value: {}", aFeature, targetRecord.get().get(aFeature));
             }
         }
         return targetRecord;
@@ -226,7 +226,7 @@ public class CodeQualityAnalyzer {
      * @param methodRecord The CSV record containing the method information
      */
     private void saveMethodSourceToFile(final CSVRecord methodRecord) {
-        log.info("[Milestone 2, Step 7] Saving AFMethod source code...");
+        LoggingPatterns.logMilestone(log, 2, 7, "Saving AFMethod source code...");
         final Optional<MethodIdentifier> identifierOpt = MethodIdentifier.fromString(methodRecord.get(CSV_COL_METHOD_NAME));
         if (identifierOpt.isEmpty()) {
             if (log.isErrorEnabled()) {
@@ -246,9 +246,9 @@ public class CodeQualityAnalyzer {
         log.debug("Using commit {} for release {}", commit.getName(), releaseName);
 
         try {
-            final String fileContent = git.getFileContent(identifier.filePath(), commit.getName());
+            final String fileContent = git.getFileContent(identifier.getFilePath(), commit.getName());
             if (fileContent.isEmpty()) {
-                log.warn("File content is empty for {}. Cannot extract method source.", identifier.filePath());
+                log.warn("File content is empty for {}. Cannot extract method source.", identifier.getFilePath());
                 return;
             }
 
@@ -262,7 +262,7 @@ public class CodeQualityAnalyzer {
                 log.debug("Successfully found and parsed method source code.");
                 handleFileSaving(methodSourceOpt.get());
             } else {
-                 log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.filePath());
+                 log.error("Could not find method with signature '{}' in file {}", identifier.signature(), identifier.getFilePath());
             }
         } catch (IOException e) {
             log.error("Could not read or write file for method: {}", identifier, e);
@@ -286,7 +286,7 @@ public class CodeQualityAnalyzer {
         Files.writeString(originalOutputPath, methodSource);
         
         if (log.isInfoEnabled()) {
-            log.info("  -> Source code of AFMethod saved to: {}", originalOutputPath);
+            LoggingPatterns.logFileOperation(log, "Source code of AFMethod saved to", originalOutputPath.toString());
         }
 
         final Path projectParentPath = datasetsPath.getParent();
@@ -302,10 +302,10 @@ public class CodeQualityAnalyzer {
         if (!Files.exists(refactoredFilePath)) {
             Files.createFile(refactoredFilePath);
             if (log.isInfoEnabled()) {
-                log.info("  -> Created empty file for refactoring at: {}", refactoredFilePath);
+                LoggingPatterns.logFileOperation(log, "Created empty file for refactoring at", refactoredFilePath.toString());
             }
         } else if (log.isInfoEnabled()) {
-            log.info("  -> Refactoring file already exists at: {}", refactoredFilePath);
+            LoggingPatterns.logFileOperation(log, "Refactoring file already exists at", refactoredFilePath.toString());
         }
     }
 }

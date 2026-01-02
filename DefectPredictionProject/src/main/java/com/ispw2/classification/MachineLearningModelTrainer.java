@@ -1,6 +1,10 @@
 package com.ispw2.classification;
 
 import com.ispw2.ConfigurationManager;
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.FormattingUtils;
+import com.ispw2.util.ApplicationConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import weka.classifiers.Classifier;
@@ -21,18 +25,13 @@ import java.util.List;
 
 public class MachineLearningModelTrainer {
     private static final Logger log = LoggerFactory.getLogger(MachineLearningModelTrainer.class);
-    private static final int NUM_FOLDS = 10;
-    private static final int NUM_REPEATS = 10;
-    
-    private static final String TABLE_SEPARATOR = "----------------------------------------------------------------------";
-    private static final String TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
-    private static final String TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
+    private static final int NUM_FOLDS = ApplicationConstants.NUM_FOLDS;
+    private static final int NUM_REPEATS = ApplicationConstants.NUM_REPEATS;
 
     private final ConfigurationManager config;
     private final String processedArffPath;
     private final String modelPath;
     private Instances data;
-    private boolean usingBalancedDataset;
 
     /**
      * Constructs a new MachineLearningModelTrainer for training and evaluating classifiers.
@@ -56,16 +55,11 @@ public class MachineLearningModelTrainer {
      * @throws IOException If training or loading fails
      */
     public Classifier getBestClassifier() throws IOException {
-        log.info("Checking for model file at path: {}", modelPath);
+        LoggingPatterns.info(log, "Checking for model file at path: {}", modelPath);
         final File modelFile = new File(modelPath);
         
-        // Check if we should force retraining due to dataset changes
-        final String balancedPath = processedArffPath.replace(".arff", "_balanced.arff");
-        final File balancedFile = new File(balancedPath);
-        final boolean usingBalancedDataset = balancedFile.exists();
-        
         if (modelFile.exists() && modelFile.length() > 0) {
-            log.info("\n[Milestone 2, Step 2-3] Found saved model. Loading from file: {}", modelPath);
+            LoggingPatterns.logMilestone(log, 2, "Found saved model. Loading from file: " + modelPath);
             try {
                 return (Classifier) SerializationHelper.read(modelPath);
             } catch (Exception e) {
@@ -73,27 +67,27 @@ public class MachineLearningModelTrainer {
             }
         }
         
-        log.info("\n[Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...");
+        LoggingPatterns.logMilestone(log, 2, 2, "No saved model found. Starting evaluation and tuning process...");
         loadData();
         
         if (!isDataSufficientForClassification()) {
-            log.warn("Data is not sufficient for classification. Returning default RandomForest classifier.");
+            LoggingPatterns.warn(log, "Data is not sufficient for classification. Returning default RandomForest classifier.");
             return new RandomForest();
         }
 
         try {
-            log.debug("Starting base classifier evaluation...");
+            LoggingUtils.debugIfEnabled(log, "Starting base classifier evaluation...");
             final Classifier bestBaseClassifier = findBestBaseClassifier();
             
             if (bestBaseClassifier == null) {
-                log.error("No base classifier could be selected. Aborting.");
+                LoggingPatterns.error(log, "No base classifier could be selected. Aborting.");
                 throw new IOException("Classifier selection failed.");
             }
             
-            log.debug("Starting hyperparameter tuning for the best classifier...");
+            LoggingUtils.debugIfEnabled(log, "Starting hyperparameter tuning for the best classifier...");
             final Classifier tunedClassifier = tuneClassifier(bestBaseClassifier);
             
-            log.info("\nSaving tuned model to: {}", modelPath);
+            LoggingPatterns.logFileOperation(log, "Saving tuned model to", modelPath);
             SerializationHelper.write(modelPath, tunedClassifier);
 
             return tunedClassifier;
@@ -104,32 +98,17 @@ public class MachineLearningModelTrainer {
 
     /**
      * Loads the ARFF dataset from the specified file path.
-     * Prefers balanced dataset if available to address class imbalance.
      * 
      * @throws IOException If loading the dataset fails
      */
     private void loadData() throws IOException {
-        // Check if balanced dataset exists and use it preferentially
-        final String balancedPath = processedArffPath.replace(".arff", "_balanced.arff");
-        final File balancedFile = new File(balancedPath);
-        final String dataPathToUse = balancedFile.exists() ? balancedPath : processedArffPath;
-        this.usingBalancedDataset = balancedFile.exists();
-        
-        if (balancedFile.exists()) {
-            log.info("Using balanced dataset: {}", balancedPath);
-        } else {
-            log.debug("Using original dataset: {}", processedArffPath);
-        }
-        
-        log.debug("Loading data from ARFF file: {}", dataPathToUse);
+        LoggingUtils.debugIfEnabled(log, "Loading data from ARFF file: {}", processedArffPath);
         final ArffLoader loader = new ArffLoader();
-        loader.setSource(new File(dataPathToUse));
+        loader.setSource(new File(processedArffPath));
         this.data = loader.getDataSet();
         this.data.setClassIndex(this.data.numAttributes() - 1);
         
-        if (log.isInfoEnabled()) {
-            log.info("Loaded {} instances from {}", this.data.numInstances(), dataPathToUse);
-        }
+        LoggingUtils.debugIfEnabled(log, "Loaded {} instances from {}", this.data.numInstances(), processedArffPath);
     }
 
     /**
@@ -138,19 +117,17 @@ public class MachineLearningModelTrainer {
      * @return true if the dataset is sufficient, false otherwise
      */
     private boolean isDataSufficientForClassification() {
-        log.debug("Checking if data is sufficient for classification...");
+        LoggingUtils.debugIfEnabled(log, "Checking if data is sufficient for classification...");
         if (this.data.numInstances() < NUM_FOLDS) {
-            log.error("The dataset has fewer than {} instances ({}), not enough for {}-fold cross-validation. Skipping evaluation.", NUM_FOLDS, this.data.numInstances(), NUM_FOLDS);
+            LoggingPatterns.error(log, "The dataset has fewer than {} instances ({}), not enough for {}-fold cross-validation. Skipping evaluation.", NUM_FOLDS, this.data.numInstances(), NUM_FOLDS);
             return false;
         }
         final Attribute classAttribute = this.data.classAttribute();
         if (classAttribute.numValues() < 2) {
-            if (log.isErrorEnabled()) {
-                log.error("The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
-            }
+            LoggingPatterns.error(log, "The dataset contains only one class value ('{}'). Cannot perform classification.", classAttribute.value(0));
             return false;
         }
-        log.debug("Data is sufficient.");
+        LoggingUtils.debugIfEnabled(log, "Data is sufficient.");
         return true;
     }
 
@@ -161,21 +138,17 @@ public class MachineLearningModelTrainer {
      * @throws Exception If evaluation fails
      */
     private Classifier findBestBaseClassifier() throws Exception {
-        log.info("--- Evaluating base classifiers on the {} dataset ---", usingBalancedDataset ? "balanced" : "original (imbalanced)");
+        LoggingPatterns.info(log, "--- Evaluating base classifiers on the original (imbalanced) dataset ---");
         final List<Classifier> classifiers = Arrays.asList(new RandomForest(), new NaiveBayes(), new IBk());
         Classifier bestClassifier = null;
         double bestAuc = 0.0;
         
-        if (log.isInfoEnabled()) {
-            log.info(TABLE_SEPARATOR);
-            log.info(String.format(TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
-            log.info(TABLE_SEPARATOR);
-        }
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
+        LoggingPatterns.info(log, String.format(ApplicationConstants.TABLE_HEADER_FORMAT, "Classifier", "AUC", "Precision", "Recall", "Kappa"));
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
 
         for (final Classifier classifier : classifiers) {
-            if (log.isDebugEnabled()){
-                log.debug("Evaluating classifier: {}", classifier.getClass().getSimpleName());
-            }
+            LoggingUtils.debugIfEnabled(log, "Evaluating classifier: {}", classifier.getClass().getSimpleName());
 
             final Evaluation eval = evaluateModel(classifier);
             final double auc = eval.weightedAreaUnderROC();
@@ -183,22 +156,18 @@ public class MachineLearningModelTrainer {
             final double recall = eval.weightedRecall();
             final double kappa = eval.kappa();
             
-            if (log.isInfoEnabled()) {
-                log.info(String.format(TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
-            }
+            LoggingPatterns.info(log, String.format(ApplicationConstants.TABLE_ROW_FORMAT, classifier.getClass().getSimpleName(), auc, precision, recall, kappa));
 
             if (auc > bestAuc) {
-                if (log.isDebugEnabled()){
-                    log.debug("New best classifier found: {} with AUC = {}", classifier.getClass().getSimpleName(), String.format("%.3f", auc));
-                }
+                LoggingUtils.debugIfEnabled(log, "New best classifier found: {} with AUC = {}", classifier.getClass().getSimpleName(), FormattingUtils.formatDecimal(auc, 3));
                 bestAuc = auc;
                 bestClassifier = classifier;
             }
         }
         
-        log.info(TABLE_SEPARATOR);
-        if (bestClassifier != null && log.isInfoEnabled()) {
-            log.info("Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
+        LoggingPatterns.info(log, ApplicationConstants.TABLE_SEPARATOR);
+        if (bestClassifier != null) {
+            LoggingPatterns.info(log, "Best base classifier selected: {}", bestClassifier.getClass().getSimpleName());
         }
         return bestClassifier;
     }
@@ -211,12 +180,10 @@ public class MachineLearningModelTrainer {
      * @throws Exception If evaluation fails
      */
     private Evaluation evaluateModel(final Classifier classifier) throws Exception {
-        log.debug("Starting evaluation for {} with {} repeats of {}-fold cross-validation.", classifier.getClass().getSimpleName(), NUM_REPEATS, NUM_FOLDS);
+        LoggingUtils.debugIfEnabled(log, "Starting evaluation for {} with {} repeats of {}-fold cross-validation.", classifier.getClass().getSimpleName(), NUM_REPEATS, NUM_FOLDS);
         final Evaluation eval = new Evaluation(this.data);
         for (int i = 0; i < NUM_REPEATS; i++) {
-            if (log.isDebugEnabled()){
-                log.debug("Running cross-validation repeat {}/{} with random seed {}.", i + 1, NUM_REPEATS, i);
-            }
+            LoggingUtils.debugIfEnabled(log, "Running cross-validation repeat {}/{} with random seed {}.", i + 1, NUM_REPEATS, i);
             eval.crossValidateModel(classifier, this.data, NUM_FOLDS, new SecureRandom());
         }
         return eval;
@@ -230,14 +197,10 @@ public class MachineLearningModelTrainer {
      * @throws Exception If tuning fails
      */
     private Classifier tuneClassifier(final Classifier baseClassifier) throws Exception {
-        if (log.isInfoEnabled()) {
-            log.info("--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());
-        }
+        LoggingPatterns.info(log, "--- Tuning hyperparameters for {} ---", baseClassifier.getClass().getSimpleName());
         
         if (!(baseClassifier instanceof RandomForest) && !(baseClassifier instanceof IBk)) {
-            if (log.isInfoEnabled()) {
-                log.info("No parameters to tune for {}.", baseClassifier.getClass().getSimpleName());
-            }
+            LoggingPatterns.info(log, "No parameters to tune for {}.", baseClassifier.getClass().getSimpleName());
             baseClassifier.buildClassifier(data);
             return baseClassifier;
         }
@@ -248,19 +211,17 @@ public class MachineLearningModelTrainer {
 
         if (baseClassifier instanceof RandomForest) {
             final String[] params = config.getRandomForestTuningParams();
-            log.debug("Tuning RandomForest with CVParameter: {}", (Object) params);
+            LoggingUtils.debugIfEnabled(log, "Tuning RandomForest with CVParameter: {}", (Object) params);
             tuner.addCVParameter(String.join(" ", params));
         } else if (baseClassifier instanceof IBk) {
             final String[] params = config.getIbkTuningParams();
-            log.debug("Tuning IBk with CVParameter: {}", (Object) params);
+            LoggingUtils.debugIfEnabled(log, "Tuning IBk with CVParameter: {}", (Object) params);
             tuner.addCVParameter(String.join(" ", params));
         }
         
-        log.debug("Building classifier with tuner...");
+        LoggingUtils.debugIfEnabled(log, "Building classifier with tuner...");
         tuner.buildClassifier(data);
-        if (log.isInfoEnabled()) {
-            log.info("Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));
-        }
+        LoggingPatterns.info(log, "Tuning complete. Best parameters: {}", String.join(" ", tuner.getBestClassifierOptions()));
         return tuner;
     }
 }
