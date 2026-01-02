@@ -56,10 +56,10 @@ public class ConfigurationManager {
     /**
      * Gets the list of actionable features from the configuration.
      * 
-     * @return List of actionable feature names (default: "CodeSmells,CyclomaticComplexity")
+     * @return List of actionable feature names (default: "LOC,CyclomaticComplexity")
      */
     public List<String> getActionableFeatures() {
-        final String features = properties.getProperty(KEY_ACTIONABLE_FEATURES, "CodeSmells,CyclomaticComplexity");
+        final String features = properties.getProperty(KEY_ACTIONABLE_FEATURES, "LOC,CyclomaticComplexity");
         return Arrays.asList(features.split(","));
     }
     

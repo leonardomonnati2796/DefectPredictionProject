@@ -1,201 +1,68 @@
-## BOOKKEEPER – Defect Prediction e Refactoring dell’AFMethod
+--- STARTING PIPELINE FOR: BOOKKEEPER ---
+Opening existing repository: C:\Users\hp\Desktop\DefectPredictionProjectFinal\github_projects\BOOKKEEPER
+Fetching project releases from JIRA for project BOOKKEEPER...
+Found 11 valid and sorted releases for project BOOKKEEPER.
+Processing release: 4.0.0
+Processing release: 4.1.0
+Processing release: 4.2.0
+Processing release: 4.2.1
+Processing release: 4.2.2
+Processing release: 4.3.0
+Processing release: 4.2.3
+Processing release: 4.3.1
+Processing release: 4.3.2
+Processing release: 4.4.0
+Processing release: 4.5.0
+Successfully mapped 11 of 11 Jira releases to Git commits.
+[Milestone 1, Step 1] Checking for Dataset...
+Dataset already exists. Skipping generation.
+Preprocessing data for analysis...
+Processed ARFF file already exists. Skipping preprocessing.
+Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+[Milestone 2, Step 1] Found saved model. Loading from file: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
+Starting data analysis to find actionable method...
+[Milestone 2, Step 1] Finding Top Actionable Feature...
+Identified Top Actionable Feature (AFeature): CyclomaticComplexity
+[Milestone 2, Step 6] Identifying Target Method (AFMethod)...
+  -> Searching within the last analyzed release: 4.2.1
+  -> Found 216 buggy methods in this release.
+Identified AFMethod (buggy method with highest CyclomaticComplexity):
+  -> MethodName: bookkeeper-server/src/main/java/org/apache/bookkeeper/client/BKException.java/getMessage(int)
+  -> CyclomaticComplexity Value: 25
+[Milestone 2, Step 7] Saving AFMethod source code...
+File Source code of AFMethod saved to: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
+File Refactoring file already exists at: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
+Data analysis completed.
+[Milestone 2, Step 10] Starting What-If Simulation using AFeature: CyclomaticComplexity
+BClassifierA training completed successfully.
+------------------------------------------------------------------
+| Dataset              | Total Instances | Predicted Defects |
+------------------------------------------------------------------
+| A (Full Dataset)     | 17255           | 828             |
+| B+ (CyclomaticComplexity > 0) | 5967            | 286             |
+| B (B+ with CyclomaticComplexity=0) | 5967            | 286             |
+| C (CyclomaticComplexity <= 0) | 11288           | 542             |
+------------------------------------------------------------------
+[PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...
+--- PRELIMINARY ANALYSIS ---
+Predicted defects in B+ (original with CyclomaticComplexity > 0): 286
+Predicted defects in B (refactored with CyclomaticComplexity = 0): 286
+QUESTION 1: NO - Predicted defects did not increase in AFMethod2 (286 vs 286).
+QUESTION 2: NO CHANGE - Predicted defects remained the same in AFMethod2 (286).
+This suggests the refactoring had no impact on predicted defect probability.
+--- END PRELIMINARY ANALYSIS ---
+[Milestone 2, Step 13] Calculating final metrics based on custom formulas...
+Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (568 - 286) / 568 = 0,496 (49.60%)
+ANSWER 1 (drop): The calculated metric value is 0,496 (49.60%).
+Formula 2 (reduction) = (actual B+ - expected B) / actual A = (568 - 286) / 827 = 0,341 (34.06%)
+ANSWER 2 (reduction): The calculated metric value is 0,341 (34.06%).
+Comparing methods:
+  Original: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
+  Refactored: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
+Feature comparison results:
+Feature                        |     Original |   Refactored |  Improvement
+--------------------------------------------------------------------------
+Could not write feature comparison CSV: datasets\method_feature_comparison.csv: Impossibile accedere al file. Il file � utilizzato da un altro processo.
 
-Questo report descrive in linguaggio naturale il risultato finale della pipeline di defect prediction
-per il progetto **Apache BOOKKEEPER**, eseguita nel workspace
-`C:\Users\hp\Desktop\DefectPredictionProjectFinal`.
-
-----------------------------------------------------------
-## 1. Dati di partenza
-
-- **Progetto analizzato**: Apache BOOKKEEPER  
-- **Sorgenti analizzati**: repository Git clonato in  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\github_projects\BOOKKEEPER`
-- **Dataset CSV generato**:  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER.csv`
-- **Dataset ARFF preprocessato (bilanciato)**:  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_processed_balanced.arff`
-- **Modello di machine learning migliore**:  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model`
-
-La pipeline ha combinato:
-- metrica di codice (complessità ciclomatica, nesting, code smells, ecc.),
-- metrica di processo (numero di revisioni, churn, autori, ecc.),
-- etichette di bugginess derivate dai bug JIRA.
-
-----------------------------------------------------------
-## 2. Feature più “azioneabile”: CyclomaticComplexity
-
-Usando **Information Gain** sul dataset ARFF, tra le feature considerate “azioneabili” dalla
-configurazione, la pipeline ha identificato:
-
-- **Top Actionable Feature (AFeature)**: `CyclomaticComplexity`
-
-Verifica empirica sul dataset CSV:
-- metodi **non buggy** (`IsBuggy = no`): complessità media ≈ **1.81**
-- metodi **buggy** (`IsBuggy = yes`): complessità media ≈ **3.79**
-
-Interpretazione: nei dati BOOKKEEPER i metodi buggy tendono ad avere **complessità più che doppia**
-rispetto ai metodi sani. È quindi sensato usare `CyclomaticComplexity` come leva principale
-per il refactoring.
-
-----------------------------------------------------------
-## 3. Metodo target (AFMethod)
-
-Nell’ultima release analizzata, la pipeline ha cercato, tra i metodi buggy, quello con il valore
-più alto di `CyclomaticComplexity`:
-
-- **AFMethod**:  
-  `bookkeeper-server/src/main/java/org/apache/bookkeeper/client/BKException.java/getMessage(int)`
-- **CyclomaticComplexity sull’ultima release**: **25**
-
-Il codice sorgente dell’AFMethod è stato salvato in:
-- originale:  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt`
-- file per la versione rifattorizzata:  
-  `C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt`
-
-----------------------------------------------------------
-## 4. Refactoring proposto per BKException.getMessage(int)
-
-La versione rifattorizzata del metodo è stata scritta nel file:
-
-- `AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt`
-
-Idea del refactoring:
-- sostituire il lungo `switch` su codice di errore con una **lookup table** (`String[] messages`)
-  e un semplice controllo di bounds;
-- mantenere **invariato il comportamento osservabile** (stessi messaggi per gli stessi codici);
-- ridurre drasticamente la complessità ciclomatica.
-
-Confronto delle principali feature statiche tra metodo originale e rifattorizzato
-(misurate tramite `MethodFeatureComparator`):
-
-- **CodeSmells**: 2 → 1  (**migliora**)
-- **CyclomaticComplexity**: 20 → 2  (**migliora molto**)
-- **ParameterCount**: 1 → 1  (invariato)
-- **NestingDepth**: 2 → 3  (leggero peggioramento strutturale locale)
-- **Metriche di processo** (NR, NAuth, churn, ecc.): invariate, perché storiche.
-
-In sostanza, il refactoring è coerente: stessa funzionalità, ma
-**molto meno complesso da leggere e mantenere**.
-
-----------------------------------------------------------
-## 5. Simulazione “what-if”: effetto del refactoring sui difetti
-
-Per stimare l’impatto del refactoring non solo sul singolo metodo ma su tutti i metodi simili,
-la classe `RefactoringImpactAnalyzer` costruisce tre dataset:
-
-- **A** – dataset completo (tutti i metodi)  
-- **B+** – soli metodi con `CyclomaticComplexity > 0`  
-- **B** – stessi metodi di B+, ma con `CyclomaticComplexity` **“forzata a 0”**  
-  (simulazione del refactoring stile AFMethod su tutti i metodi “a rischio”)  
-- **C** – metodi con `CyclomaticComplexity <= 0`
-
-### 5.1. Riepilogo difetti previsti (modello di ML)
-
-Tabella riassuntiva (run finale nel workspace *Final*):
-
-| Dataset | Descrizione | Totale istanze | Difetti previsti |
-|--------|-------------|----------------|------------------|
-| **A**  | Tutti i metodi | 13 836 | 3 438 |
-| **B+** | Metodi con `CyclomaticComplexity > 0` (stato attuale) | 5 926 | 2 791 |
-| **B**  | Stessi metodi di B+ ma con `CyclomaticComplexity = 0` (refactoring simulato) | 5 926 | **543** |
-| **C**  | Metodi con `CyclomaticComplexity <= 0` | 7 910 | 647 |
-
-Numeri **verificati direttamente sui dati**:
-
-- **Difetti reali in A** (`actual A`) = **3314**  
-  (conteggio delle istanze con classe `yes` in `BOOKKEEPER_processed_balanced.arff`)
-- **Difetti reali in B+** (`actual B+`) = **2392**  
-  (classe `yes` con `CyclomaticComplexity > 0`)
-- **Difetti previsti in B** (`expected B`) = **543**
-
-----------------------------------------------------------
-## 6. Metriche finali di impatto (corrette e aggiornate)
-
-Le due formule usate sono:
-
-- **Formula 1 – drop**  
-  \[
-  \text{drop} = \frac{\text{actual B+} - \text{expected B}}{\text{actual B+}}
-  \]
-  misura la riduzione relativa dei difetti nel sottoinsieme “a rischio” B+,
-  se tutti quei metodi venissero rifattorizzati come l’AFMethod.
-
-- **Formula 2 – reduction**  
-  \[
-  \text{reduction} = \frac{\text{actual B+} - \text{expected B}}{\text{actual A}}
-  \]
-  misura quanto questa riduzione si riflette **sull’intero sistema** (dataset A).
-
-Con i valori aggiornati:
-- `actual B+` = 2392  
-- `expected B` = 543  
-- `actual A` = 3314
-
-si ottiene:
-
-- **Formula 1 (drop)**  
-  \[
-  \text{drop} = \frac{2392 - 543}{2392} \approx 0{,}773
-  \]
-- **Formula 2 (reduction)**  
-  \[
-  \text{reduction} = \frac{2392 - 543}{3314} \approx 0{,}558
-  \]
-
-Interpretazione:
-
-- **drop ≈ 0.77**  
-  → se rifattorizzassimo tutti i metodi con `CyclomaticComplexity > 0` riducendola a 0
-  (stile AFMethod), il modello stima una **riduzione di circa il 77% dei difetti** nel gruppo
-  dei metodi “a rischio”.
-
-- **reduction ≈ 0.56**  
-  → a livello di tutto il sistema BOOKKEEPER si avrebbe una **riduzione complessiva di circa il 56%**
-  dei difetti, sempre secondo le previsioni del modello.
-
-### 6.1. Versione riscalata in [0,1]
-
-Per avere una metrica sempre positiva e più leggibile come “punteggio di miglioramento”
-si usa anche una trasformazione lineare:
-
-\[
-\text{scaled} = \frac{\text{raw} + 1}{2}
-\]
-
-che mappa il range teorico \([-1, 1]\) in \([0, 1]\):
-- 0 = caso peggiore (refactoring molto dannoso),
-- 0.5 = nessun effetto,
-- 1 = miglioramento massimo.
-
-Applicandola:
-
-- **drop_scaled ≈ (0.773 + 1) / 2 ≈ 0.886**
-- **reduction_scaled ≈ (0.558 + 1) / 2 ≈ 0.779**
-
-Questi valori possono essere letti come:
-- ~0.89 → “impatto molto positivo sui metodi più rischiosi”  
-- ~0.78 → “impatto complessivamente positivo sul progetto”.
-
-----------------------------------------------------------
-## 7. Conclusioni per BOOKKEEPER
-
-1. **CyclomaticComplexity è realmente correlata a bugginess**  
-   - Metodi buggy hanno complessità media circa doppia rispetto ai non buggy.
-
-2. **L’AFMethod scelto è sensato**  
-   - `BKException.getMessage(int)` presenta complessità molto alta ed è un buon candidato
-     per dimostrare l’effetto del refactoring.
-
-3. **Il refactoring proposto è funzionalmente equivalente ma molto più semplice**  
-   - Complexity da ~20–25 a ~2, con riduzione anche di alcuni code smell.
-
-4. **L’impatto stimato sui difetti è fortemente positivo**  
-   - Riduzione attesa del ~77% dei difetti nel sottoinsieme più critico (B+).
-   - Riduzione attesa del ~56% dei difetti totali nel sistema.
-
-Nel complesso, i risultati della pipeline per BOOKKEEPER sono coerenti e supportano in modo
-credibile la tesi che **ridurre la complessità ciclomatica dei metodi più rischiosi
-(come `BKException.getMessage(int)`) può portare a un beneficio significativo in termini di rischio
-di difetti**, secondo il modello di defect prediction addestrato sui dati storici del progetto.
+--- FINISHED PIPELINE FOR: BOOKKEEPER ---
+Pipeline finished.

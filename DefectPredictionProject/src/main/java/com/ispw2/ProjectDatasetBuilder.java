@@ -7,6 +7,14 @@ import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.BugReport;
 import com.ispw2.model.SoftwareRelease;
 import com.ispw2.model.AnalyzedMethod;
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.DataUtils;
+import com.ispw2.util.MethodUtils;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.FormattingUtils;
+import com.ispw2.util.StreamUtils;
+import com.ispw2.util.ApplicationConstants;
+import com.ispw2.util.CsvHeadersUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.QuoteMode;
@@ -16,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.*;
@@ -24,16 +33,12 @@ import java.util.stream.Collectors;
 public class ProjectDatasetBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectDatasetBuilder.class);
-    private static final String[] CSV_HEADERS = {
-        "Project", "MethodName", "Release", "CodeSmells",
-        CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, CodeQualityMetrics.PARAMETER_COUNT,
-        CodeQualityMetrics.NESTING_DEPTH, "NR", "NAuth", "stmtAdded", "stmtDeleted", "maxChurn", "avgChurn", "IsBuggy"
-    };
+    private static final String[] CSV_HEADERS = CsvHeadersUtils.getMethodDatasetHeaders();
 
-    private static final double PROPORTION_DEFAULT_COEFFICIENT = 1.5;
-    private static final String BUGGY_YES = "yes";
-    private static final String BUGGY_NO = "no";
-    private static final String METHOD_KEY_SEPARATOR = "::";
+    private static final double PROPORTION_DEFAULT_COEFFICIENT = ApplicationConstants.PROPORTION_DEFAULT_COEFFICIENT;
+    private static final String BUGGY_YES = ApplicationConstants.BUGGY_YES;
+    private static final String BUGGY_NO = ApplicationConstants.BUGGY_NO;
+    private static final String METHOD_KEY_SEPARATOR = ApplicationConstants.METHOD_KEY_SEPARATOR;
 
     private final ConfigurationManager config;
     private final String projectName;
@@ -57,8 +62,8 @@ public class ProjectDatasetBuilder {
         this.projectName = projectName;
         this.git = git;
         this.jira = jira;
-        this.releases = releases;
-        this.releaseCommits = releaseCommits;
+        this.releases = releases != null ? new ArrayList<>(releases) : null;
+        this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
     }
 
     /**
@@ -76,16 +81,16 @@ public class ProjectDatasetBuilder {
             git.findAndSetFixCommits(tickets);
             setVersionIndices(tickets, releases);
             final double pMedian = calculateProportionCoefficient(tickets);
-            log.debug("Calculated proportion median for bug introduction: {}", pMedian);
+            LoggingUtils.debugIfEnabled(log, "Calculated proportion median for bug introduction: {}", pMedian);
 
             final Map<String, List<String>> bugToMethodsMap = git.getBugToMethodsMap(tickets);
             final MethodAnalysisTracker tracker = new MethodAnalysisTracker(git);
 
             final List<String[]> csvData = buildCsvData(releases, tickets, releaseCommits, tracker, bugToMethodsMap, pMedian);
-            log.debug("Generated {} total rows (including header) for the dataset.", csvData.size());
+            LoggingUtils.debugIfEnabled(log, "Generated {} total rows (including header) for the dataset.", csvData.size());
 
             writeToCsv(csvFilePath, csvData);
-            log.info("Dataset successfully written to {}", csvFilePath);
+            LoggingPatterns.logFileOperation(log, "Dataset successfully written to", csvFilePath);
 
         } catch (IOException e) {
             throw new IllegalStateException("Failed to generate dataset for project " + this.projectName, e);
@@ -108,19 +113,13 @@ public class ProjectDatasetBuilder {
         final List<String[]> csvData = new ArrayList<>();
         csvData.add(CSV_HEADERS);
 
-        final Set<String> seenMethodReleaseKeys = new HashSet<>();
-        int duplicateCount = 0;
-
         final double cutoffPercentage = config.getReleaseCutoffPercentage();
         final int releaseCutoff = (int) Math.ceil(allReleases.size() * cutoffPercentage);
         final List<SoftwareRelease> releasesToAnalyze = allReleases.subList(0, releaseCutoff);
-        log.debug("Analyzing {} of {} releases (cutoff at {}%).", releasesToAnalyze.size(), allReleases.size(), cutoffPercentage * 100);
+        LoggingUtils.debugIfEnabled(log, "Analyzing {} of {} releases (cutoff at {}%).", releasesToAnalyze.size(), allReleases.size(), cutoffPercentage * 100);
 
-        final int totalReleases = releasesToAnalyze.size();
-        int releaseIndex = 0;
         for (final SoftwareRelease release : releasesToAnalyze) {
-            releaseIndex++;
-            log.info("Processing release {}/{}: {}", releaseIndex, totalReleases, release.name());
+            LoggingUtils.debugIfEnabled(log, "Processing release: {}", release.name());
             final RevCommit releaseCommit = releaseCommits.get(release.name());
             if (releaseCommit == null) {
                 log.warn("Skipping release {} as no commit was found for it.", release.name());
@@ -128,28 +127,13 @@ public class ProjectDatasetBuilder {
             }
 
             final List<AnalyzedMethod> methods = tracker.getMethodsForRelease(releaseCommit);
-            log.debug("Found {} methods for release {}", methods.size(), release.name());
-            // Iteration counter intentionally removed to keep logs concise
+            LoggingUtils.debugIfEnabled(log, "Found {} methods for release {}", methods.size(), release.name());
             for (final AnalyzedMethod method : methods) {
-                final String methodName = method.filepath() + "/" + method.signature();
-                final String key = methodName + "|" + release.name();
-                if (seenMethodReleaseKeys.contains(key)) {
-                    duplicateCount++;
-                    continue;
-                }
-                seenMethodReleaseKeys.add(key);
-
                 final String[] row = createCsvRow(method, release, tickets, bugToMethodsMap, pMedian);
-                if (row != null) {
-                    csvData.add(row);
-                }
+                csvData.add(row);
             }
         }
-        if (duplicateCount > 0) {
-            log.warn("Detected and removed {} duplicate rows (same MethodName + Release).", duplicateCount);
-        }
-
-        return pruneLowVarianceFeatureColumns(csvData);
+        return csvData;
     }
 
     /**
@@ -165,130 +149,22 @@ public class ProjectDatasetBuilder {
     private String[] createCsvRow(final AnalyzedMethod method, final SoftwareRelease release, final List<BugReport> tickets, final Map<String, List<String>> bugToMethodsMap, final double pMedian) {
         final boolean isBuggy = isMethodBuggy(method, release, tickets, pMedian, bugToMethodsMap);
         final Map<String, Number> features = method.getFeatures();
-
-        // Filter-out trivial methods (approximate accessors/toString) to reduce noise
-        final int cyclo = features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).intValue();
-        final int params = features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).intValue();
-        final int nesting = features.getOrDefault(CodeQualityMetrics.NESTING_DEPTH, 0).intValue();
-        if (cyclo <= 1 && params <= 1 && nesting <= 1) {
-            return null;
-        }
-        final String methodName = method.filepath() + "/" + method.signature();
+        final String methodName = MethodUtils.createMethodIdentifier(method.filepath(), method.signature());
 
         return new String[]{
             this.projectName, methodName, release.name(),
-            features.getOrDefault("CodeSmells", 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
-            features.getOrDefault(CodeQualityMetrics.NESTING_DEPTH, 0).toString(),
-            features.getOrDefault("NR", 0).toString(),
-            features.getOrDefault("NAuth", 0).toString(),
-            features.getOrDefault("stmtAdded", 0).toString(),
-            features.getOrDefault("stmtDeleted", 0).toString(),
-            features.getOrDefault("maxChurn", 0).toString(),
-            String.format(Locale.US, "%.2f", features.getOrDefault("avgChurn", 0.0)),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.CODE_SMELLS, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.PARAMETER_COUNT, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.DUPLICATION, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.NR, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.NAUTH, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_ADDED, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.STMT_DELETED, 0).toString(),
+            DataUtils.getNumberOrDefault(features, CodeQualityMetrics.MAX_CHURN, 0).toString(),
+            FormattingUtils.formatDecimal(DataUtils.getNumberOrDefault(features, CodeQualityMetrics.AVG_CHURN, 0.0)),
             isBuggy ? BUGGY_YES : BUGGY_NO
         };
-    }
-
-    /**
-     * Removes feature columns that are quasi-constant (>=95% zeros or missing) across the dataset.
-     * Keeps label and identifier columns intact.
-     */
-    private List<String[]> pruneLowVarianceFeatureColumns(final List<String[]> data) {
-        if (data.isEmpty()) {
-            return data;
-        }
-
-        final String[] header = data.get(0);
-        final int nCols = header.length;
-        final int firstFeatureIdx = 3;
-        final int lastFeatureIdx = nCols - 2; // column before IsBuggy
-        final int rowCount = data.size() - 1;
-
-        final boolean[] drop = new boolean[nCols];
-        for (int c = firstFeatureIdx; c <= lastFeatureIdx; c++) {
-            drop[c] = shouldDropColumn(data, c, rowCount, header[c]);
-        }
-
-        final List<Integer> keptIdx = buildKeptColumnIndices(nCols, firstFeatureIdx, drop);
-        return buildPrunedDataset(data, keptIdx);
-    }
-
-    /**
-     * Decides whether a column should be dropped based on the proportion of zero/missing values.
-     */
-    private boolean shouldDropColumn(final List<String[]> data, final int columnIndex, final int rowCount, final String columnName) {
-        int zeroOrMissing = 0;
-        for (int r = 1; r < data.size(); r++) {
-            final String v = data.get(r)[columnIndex];
-            if (v == null || v.isEmpty()) {
-                zeroOrMissing++;
-                continue;
-            }
-            if (isZeroNumericValue(v)) {
-                zeroOrMissing++;
-            }
-        }
-
-        final double ratio = (rowCount > 0) ? ((double) zeroOrMissing) / rowCount : 0.0;
-        if (ratio >= 0.95) {
-            log.warn(
-                "Dropping low-variance feature column: {} (zero/missing ratio = {}%)",
-                columnName,
-                String.format(java.util.Locale.US, "%.2f", ratio * 100)
-            );
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Parses a numeric string and returns true if it represents zero.
-     * Unparsable values are treated as missing/zero for the purpose of pruning.
-     */
-    private boolean isZeroNumericValue(final String rawValue) {
-        try {
-            final double d = Double.parseDouble(rawValue.replace(',', '.'));
-            return d == 0.0;
-        } catch (NumberFormatException ex) {
-            // treat unparsable as missing
-            return true;
-        }
-    }
-
-    /**
-     * Builds the list of column indices to keep, always preserving identifiers and label columns.
-     */
-    private List<Integer> buildKeptColumnIndices(final int nCols, final int firstFeatureIdx, final boolean[] drop) {
-        final List<Integer> keptIdx = new ArrayList<>();
-        for (int c = 0; c < nCols; c++) {
-            final boolean isIdentifierColumn = c < firstFeatureIdx || c == nCols - 1;
-            if (isIdentifierColumn || !drop[c]) {
-                keptIdx.add(c);
-            }
-        }
-        return keptIdx;
-    }
-
-    /**
-     * Builds the pruned dataset (header + rows) given the indices of columns to keep.
-     */
-    private List<String[]> buildPrunedDataset(final List<String[]> data, final List<Integer> keptIdx) {
-        final List<String[]> pruned = new ArrayList<>();
-        pruned.add(extractColumns(data.get(0), keptIdx));
-        for (int r = 1; r < data.size(); r++) {
-            pruned.add(extractColumns(data.get(r), keptIdx));
-        }
-        return pruned;
-    }
-
-    private String[] extractColumns(final String[] row, final List<Integer> keptIdx) {
-        final String[] out = new String[keptIdx.size()];
-        for (int i = 0; i < keptIdx.size(); i++) {
-            out[i] = row[keptIdx.get(i)];
-        }
-        return out;
     }
 
     /**
@@ -302,7 +178,7 @@ public class ProjectDatasetBuilder {
         final CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setQuoteMode(QuoteMode.ALL)
                 .build();
-        try (FileWriter writer = new FileWriter(filePath);
+        try (FileWriter writer = new FileWriter(filePath, StandardCharsets.UTF_8);
              CSVPrinter csvPrinter = new CSVPrinter(writer, format)) {
             csvPrinter.printRecords(csvData);
         }
@@ -361,14 +237,14 @@ public class ProjectDatasetBuilder {
      * @param releases List of software releases for index mapping
      */
     private void setVersionIndices(final List<BugReport> tickets, final List<SoftwareRelease> releases) {
-        final Map<String, Integer> releaseNameIndexMap = releases.stream().collect(Collectors.toMap(SoftwareRelease::name, SoftwareRelease::index));
+        final Map<String, Integer> releaseNameIndexMap = StreamUtils.mapToMap(releases, SoftwareRelease::name, SoftwareRelease::index);
         for (final BugReport ticket : tickets) {
             ticket.setOpeningVersionIndex(findReleaseIndexForDate(ticket.getCreationDate().toLocalDate(), releases));
             if (ticket.getResolutionDate() != null) {
                 ticket.setFixedVersionIndex(findReleaseIndexForDate(ticket.getResolutionDate().toLocalDate(), releases));
             }
-            ticket.getAffectedVersions().stream()
-                    .map(releaseNameIndexMap::get)
+            StreamUtils.mapToList(ticket.getAffectedVersions(), releaseNameIndexMap::get)
+                    .stream()
                     .filter(Objects::nonNull)
                     .min(Integer::compareTo)
                     .ifPresent(ticket::setIntroductionVersionIndex);
@@ -396,8 +272,9 @@ public class ProjectDatasetBuilder {
      * @return The calculated proportion median coefficient
      */
     private double calculateProportionCoefficient(final List<BugReport> tickets) {
-        final List<Double> pValues = tickets.stream()
-                .filter(t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
+        final List<Double> pValues = StreamUtils.filterToList(tickets,
+                t -> t.getIntroductionVersionIndex() > 0 && t.getFixedVersionIndex() > 0 && t.getOpeningVersionIndex() > 0 && t.getFixedVersionIndex() > t.getOpeningVersionIndex())
+                .stream()
                 .map(t -> (double) (t.getFixedVersionIndex() - t.getIntroductionVersionIndex()) / (t.getFixedVersionIndex() - t.getOpeningVersionIndex()))
                 .sorted()
                 .collect(Collectors.toList());

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,9 +24,9 @@ public class BugReport {
     public BugReport(final String key, final LocalDateTime creationDate, final List<String> affectedVersions) {
         this.key = key;
         this.creationDate = creationDate;
-        this.affectedVersions = affectedVersions;
+        this.affectedVersions = affectedVersions != null ? new ArrayList<>(affectedVersions) : new ArrayList<>();
         if (log.isDebugEnabled()) {
-            log.debug("New BugReport created -> Key: {}, CreationDate: {}, AffectedVersions: {}", key, creationDate, affectedVersions);
+            log.debug("New BugReport created -> Key: {}, CreationDate: {}, AffectedVersions: {}", key, creationDate, this.affectedVersions);
         }
     }
 
@@ -34,7 +35,7 @@ public class BugReport {
     public LocalDateTime getCreationDate() { return creationDate; }
     public LocalDateTime getResolutionDate() { return resolutionDate; }
     public String getFixCommitHash() { return fixCommitHash; }
-    public List<String> getAffectedVersions() { return affectedVersions; }
+    public List<String> getAffectedVersions() { return new ArrayList<>(affectedVersions); }
     public int getIntroductionVersionIndex() { return introductionVersionIndex; }
     public int getOpeningVersionIndex() { return openingVersionIndex; }
     public int getFixedVersionIndex() { return fixedVersionIndex; }
@@ -65,7 +66,8 @@ public class BugReport {
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return key.equals(((BugReport) o).key);
+        final BugReport that = (BugReport) o;
+        return Objects.equals(key, that.key);
     }
 
     @Override

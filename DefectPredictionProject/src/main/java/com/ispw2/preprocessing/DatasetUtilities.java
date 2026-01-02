@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,11 +26,6 @@ import java.util.Optional;
 public final class DatasetUtilities {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetUtilities.class);
-    // Threshold used to decide a positive ("yes") prediction based on probability
-    // Tune this value if the summary table shows all zeros or too many positives
-    private static final double PREDICTION_YES_THRESHOLD = 0.20;
-    // Numerical tolerance to handle ties when calibrated threshold equals many probabilities
-    private static final double DECISION_EPS = 1e-9;
 
     private DatasetUtilities() {}
 
@@ -41,16 +37,31 @@ public final class DatasetUtilities {
      * @throws IOException If file loading fails
      */
     public static Instances loadArff(final String filePath) throws IOException {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("File path cannot be null or empty");
+        }
+        
+        final File file = new File(filePath);
+        if (!file.exists()) {
+            throw new IOException("ARFF file does not exist: " + filePath);
+        }
+        
         if (log.isDebugEnabled()) {
             log.debug("Loading ARFF file from {}...", filePath);
         }
-        final ArffLoader loader = new ArffLoader();
-        loader.setSource(new File(filePath));
-        Instances data = loader.getDataSet();
-        if (log.isDebugEnabled()) {
-            log.debug("Successfully loaded {} instances from {}.", data.numInstances(), filePath);
+        
+        try {
+            final ArffLoader loader = new ArffLoader();
+            loader.setSource(file);
+            final Instances data = loader.getDataSet();
+            
+            if (log.isDebugEnabled()) {
+                log.debug("Successfully loaded {} instances from {}.", data.numInstances(), filePath);
+            }
+            return data;
+        } catch (Exception e) {
+            throw new IOException("Failed to load ARFF file: " + filePath, e);
         }
-        return data;
     }
 
     /**
@@ -64,7 +75,7 @@ public final class DatasetUtilities {
         if (log.isDebugEnabled()) {
             log.debug("Reading CSV file from {}...", filePath);
         }
-        try (Reader reader = new FileReader(filePath);
+        try (Reader reader = new FileReader(filePath, StandardCharsets.UTF_8);
              CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
             List<CSVRecord> records = parser.getRecords();
             if (log.isDebugEnabled()) {
@@ -82,122 +93,53 @@ public final class DatasetUtilities {
      * @return Number of instances predicted as defective
      */
     public static int countDefective(final Classifier model, final Instances data) {
-        log.debug("Counting PREDICTED defective instances...");
-        int defectiveCount = 0;
-        final Attribute classAttribute = data.classAttribute();
+        if (model == null) {
+            log.warn("Classifier model is null. Returning 0 predicted defects.");
+            return 0;
+        }
 
-        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
+        if (data == null) {
+            log.warn("Provided dataset is null. Returning 0 predicted defects.");
+            return 0;
+        }
+
+        // Ensure class index is set
+        if (data.classIndex() == -1) {
+            data.setClassIndex(data.numAttributes() - 1);
+        }
+
+        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(data.classAttribute());
         if (buggyClassIndexOpt.isEmpty()) {
             log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 predicted defects.");
             return 0;
         }
-        final int buggyClassIndex = buggyClassIndexOpt.get();
 
-        // DEBUG: Log some prediction probabilities for first few instances
-        if (data.numInstances() > 0) {
-            log.info("DEBUG: Analyzing first 5 instances for prediction probabilities:");
-            for (int i = 0; i < Math.min(5, data.numInstances()); i++) {
-                try {
-                    double[] distribution = model.distributionForInstance(data.instance(i));
-                    double predictedClass = model.classifyInstance(data.instance(i));
-                log.info("Instance {}: actual_class={}, predicted_class={}, prob_no={}, prob_yes={}", 
-                    i, data.instance(i).classValue(), predictedClass, 
-                    String.format("%.3f", distribution[0]), String.format("%.3f", distribution[1]));
-                } catch (Exception e) {
-                    log.info("Could not get distribution for instance {}: {}", i, e.getMessage());
-                }
-            }
-        }
+        final int buggyIndex = buggyClassIndexOpt.get();
+        int defectiveCount = 0;
+        int seen = 0;
+
+            log.info("Class attribute '{}' values = {} ; buggyIndex={}", data.classAttribute().name(), data.classAttribute().toString(), buggyIndex);
 
         for (final Instance instance : data) {
             try {
-                final double[] distribution = model.distributionForInstance(instance);
-                final double probYes = distribution[buggyClassIndex];
-                if (probYes + DECISION_EPS >= PREDICTION_YES_THRESHOLD) {
+                final double[] dist = model.distributionForInstance(instance);
+                final double probYes = (buggyIndex >= 0 && buggyIndex < dist.length) ? dist[buggyIndex] : 0.0;
+                if (seen < 5) {
+                    log.info("Probability for 'buggy' class on instance {}: {}", seen + 1, probYes);
+                }
+                if (probYes >= 0.5) {
                     defectiveCount++;
                 }
-            } catch (Exception e) {
-                log.warn("Could not classify instance. Skipping. Reason: {}", e.getMessage());
-            }
-        }
-        log.debug("Found {} PREDICTED defective instances out of {} total (threshold={}).", defectiveCount, data.numInstances(), PREDICTION_YES_THRESHOLD);
-        return defectiveCount;
-    }
-
-    /**
-     * Counts predicted defective instances using a custom probability threshold.
-     */
-    public static int countDefective(final Classifier model, final Instances data, final double yesThreshold) {
-        int defectiveCount = 0;
-        final Attribute classAttribute = data.classAttribute();
-        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
-        if (buggyClassIndexOpt.isEmpty()) return 0;
-        final int buggyClassIndex = buggyClassIndexOpt.get();
-        for (final Instance instance : data) {
-            try {
-                final double[] distribution = model.distributionForInstance(instance);
-                final double probYes = distribution[buggyClassIndex];
-                if (probYes + DECISION_EPS >= yesThreshold) defectiveCount++;
-            } catch (Exception e) {
-                // If classification fails for a single instance, skip it but continue counting others.
-                log.debug("Skipping instance during threshold-based defect count due to error: {}", e.getMessage());
-            }
-        }
-        return defectiveCount;
-    }
-
-    /**
-     * Computes an optimal decision threshold on dataset with ground truth by maximizing Youden's J.
-     * Returns 0.5 if computation fails.
-     */
-    public static double computeOptimalYesThreshold(final Classifier model, final Instances labeledData) {
-        try {
-            final Attribute classAttribute = labeledData.classAttribute();
-            final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
-            if (buggyClassIndexOpt.isEmpty()) return 0.5;
-            final int buggyIdx = buggyClassIndexOpt.get();
-
-            // Collect probabilities and true labels
-            final int n = labeledData.numInstances();
-            final double[] probs = new double[n];
-            final int[] labels = new int[n];
-            int pos = 0, neg = 0;
-            for (int i = 0; i < n; i++) {
-                final Instance inst = labeledData.instance(i);
-                labels[i] = (inst.classValue() == buggyIdx) ? 1 : 0;
-                if (labels[i] == 1) pos++; else neg++;
-                try {
-                    final double[] dist = model.distributionForInstance(inst);
-                    probs[i] = dist[buggyIdx];
-                } catch (Exception e) {
-                    probs[i] = 0.0;
+            } catch (final Exception e) {
+                if (seen < 5) {
+                    log.warn("Could not classify instance (first {} occurrences logged). Reason: {}", 5, e.getMessage());
                 }
             }
-            if (pos == 0 || neg == 0) return 0.5;
-
-            // Build sorted unique probability list
-            final double[] uniq = java.util.Arrays.stream(probs).distinct().sorted().toArray();
-            if (uniq.length <= 1) return 0.5;
-
-            // Evaluate thresholds at midpoints between adjacent unique probabilities
-            double bestT = 0.5; double bestJ = -1.0;
-            for (int i = 0; i < uniq.length - 1; i++) {
-                final double t = (uniq[i] + uniq[i + 1]) / 2.0;
-                int tp = 0, fp = 0;
-                for (int j = 0; j < n; j++) {
-                    final boolean predPos = probs[j] >= t;
-                    if (predPos && labels[j] == 1) tp++;
-                    else if (predPos) fp++;
-                }
-                final double tpr = pos > 0 ? (double) tp / pos : 0.0; // recall
-                final double fpr = neg > 0 ? (double) fp / neg : 0.0;
-                final double J = tpr - fpr; // Youden's J statistic
-                if (J > bestJ) { bestJ = J; bestT = t; }
-            }
-            return bestT;
-        } catch (Exception e) {
-            return 0.5;
+            seen++;
         }
+
+        log.debug("Found {} PREDICTED defective instances.", defectiveCount);
+        return defectiveCount;
     }
 
     /**
@@ -207,24 +149,92 @@ public final class DatasetUtilities {
      * @return Number of instances that are actually defective
      */
     public static int countActualDefective(Instances data) {
-        log.debug("Counting ACTUAL defective instances...");
+        return countDefectiveInstances(data, "ACTUAL", instance -> instance.classValue());
+    }
+
+    /**
+     * Sums the predicted probability of the 'buggy' class over all instances.
+     * This returns the expected number of defective instances (sum of probabilities).
+     *
+     * @param model The trained classifier
+     * @param data The dataset to analyze
+     * @return Expected number of defective instances (double)
+     */
+    public static double sumPredictedProbabilities(final Classifier model, final Instances data) {
+        if (model == null || data == null) return 0.0;
+
+        if (data.classIndex() == -1) data.setClassIndex(data.numAttributes() - 1);
+        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(data.classAttribute());
+        if (buggyClassIndexOpt.isEmpty()) return 0.0;
+        final int buggyIndex = buggyClassIndexOpt.get();
+
+        double sum = 0.0;
+        for (final Instance instance : data) {
+            try {
+                final double[] dist = model.distributionForInstance(instance);
+                final double probYes = (buggyIndex >= 0 && buggyIndex < dist.length) ? dist[buggyIndex] : 0.0;
+                sum += probYes;
+            } catch (final Exception e) {
+                // ignore individual classification errors
+            }
+        }
+        return sum;
+    }
+    
+    /**
+     * Counts defective instances using a provided classifier function.
+     * 
+     * @param data The dataset to analyze
+     * @param type Type of counting (for logging)
+     * @param classifier Function to determine if an instance is defective
+     * @return Number of defective instances
+     */
+    private static int countDefectiveInstances(Instances data, String type, InstanceClassifier classifier) {
+        log.debug("Counting {} defective instances...", type);
         int defectiveCount = 0;
         final Attribute classAttribute = data.classAttribute();
 
-        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
+        // Ensure class index is set; some filtered datasets may lose it
+        if (data.classIndex() == -1) {
+            log.warn("Class index not set on dataset. Setting class index to last attribute.");
+            data.setClassIndex(data.numAttributes() - 1);
+        }
+
+        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(data.classAttribute());
         if (buggyClassIndexOpt.isEmpty()) {
-            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 actual defects.");
+            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 {} defects.", type.toLowerCase());
             return 0;
         }
         final double buggyClassIndex = buggyClassIndexOpt.get();
 
+        // Diagnostic: log the first few classification outputs to help debug unexpected all-zero predictions
+        int seen = 0;
         for (final Instance instance : data) {
-            if (instance.classValue() == buggyClassIndex) {
-                defectiveCount++;
+            try {
+                final double result = classifier.isDefective(instance);
+                if (seen < 10 && log.isDebugEnabled()) {
+                    log.debug("Classification output for instance {}: {} (buggyIndex={})", seen + 1, result, buggyClassIndex);
+                }
+                if (result == buggyClassIndex) {
+                    defectiveCount++;
+                }
+            } catch (Exception e) {
+                if (seen < 5) {
+                    log.warn("Could not classify instance (first {} occurrences will be logged). Reason: {}", 5, e.getMessage());
+                }
             }
+            seen++;
         }
-        log.debug("Found {} ACTUAL defective instances.", defectiveCount);
+        log.debug("Found {} {} defective instances.", defectiveCount, type);
         return defectiveCount;
+    }
+    
+    /**
+     * Functional interface for classifying instances.
+     */
+    @FunctionalInterface
+    private interface InstanceClassifier {
+        double isDefective(Instance instance) throws Exception;
     }
     
     /**

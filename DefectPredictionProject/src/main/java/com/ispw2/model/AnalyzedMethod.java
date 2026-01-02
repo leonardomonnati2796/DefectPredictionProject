@@ -1,5 +1,7 @@
 package com.ispw2.model;
 
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,34 +21,28 @@ public final class AnalyzedMethod {
         this.id = id;
         this.signature = signature;
         this.filepath = filepath;
-        if (log.isDebugEnabled()) {
-            log.debug("Creating new AnalyzedMethod: id={}, signature='{}', filepath='{}'", id, signature, filepath);
-        }
+        LoggingUtils.debugIfEnabled(log, "Creating new AnalyzedMethod: id={}, signature='{}', filepath='{}'", id, signature, filepath);
     }
 
     public String id() { return id; }
     public String signature() { return signature; }
     public String filepath() { return filepath; }
-    public Map<String, Number> getFeatures() { return features; }
+    public Map<String, Number> getFeatures() { return CollectionUtils.defensiveCopy(features); }
 
     public void addFeature(final String name, final Number value) {
-        if (log.isDebugEnabled()) {
-            log.debug("Adding feature to method {}: {} = {}", this.id, name, value);
-        }
+        LoggingUtils.debugIfEnabled(log, "Adding feature to method {}: {} = {}", this.id, name, value);
         this.features.put(name, value);
     }
     
     public void addAllFeatures(final Map<String, Number> newFeatures) {
-        if (log.isDebugEnabled()) {
-            log.debug("Adding {} features to method {}: {}", newFeatures.size(), this.id, newFeatures);
-        }
+        LoggingUtils.debugIfEnabled(log, "Adding {} features to method {}: {}", newFeatures.size(), this.id, newFeatures);
         this.features.putAll(newFeatures);
     }
 
     @Override
     public boolean equals(final Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != this.getClass()) return false;
+        if (obj == null || getClass() != obj.getClass()) return false;
         final AnalyzedMethod that = (AnalyzedMethod) obj;
         return Objects.equals(this.id, that.id);
     }
@@ -58,11 +54,12 @@ public final class AnalyzedMethod {
 
     @Override
     public String toString() {
-        return "AnalyzedMethod[" +
-                "id=" + id +
-                ", signature='" + signature + '\'' +
-                ", filepath='" + filepath + '\'' +
-                ", features=" + features +
-                ']';
+        return new StringBuilder("AnalyzedMethod[")
+                .append("id=").append(id)
+                .append(", signature='").append(signature).append('\'')
+                .append(", filepath='").append(filepath).append('\'')
+                .append(", features=").append(features)
+                .append(']')
+                .toString();
     }
 }

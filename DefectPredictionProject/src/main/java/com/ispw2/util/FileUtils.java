@@ -67,15 +67,24 @@ public final class FileUtils {
      */
     public static String getParentDirectory(final Logger logger) throws IOException {
         final String currentDir = System.getProperty("user.dir");
-        final Path currentPath = Paths.get(currentDir);
-        final Path parentPath = currentPath.getParent();
-        
-        if (parentPath == null) {
-            logger.error("Cannot determine parent directory. Current directory: {}", currentDir);
-            throw new IOException("Cannot determine parent directory. Please run from within the project folder.");
+        Path probe = Paths.get(currentDir);
+
+        // Walk upwards until we find a directory that looks like the workspace root.
+        // Heuristics: contains a module folder `DefectPredictionProject`, a `datasets` folder, or a top-level pom.xml.
+        while (probe != null) {
+            final Path candidate1 = probe.resolve("DefectPredictionProject");
+            final Path candidate2 = probe.resolve("datasets");
+            final Path candidate3 = probe.resolve("pom.xml");
+
+            if (Files.exists(candidate1) || Files.exists(candidate2) || Files.exists(candidate3)) {
+                logger.debug("Determined workspace root at: {}", probe.toString());
+                return probe.toString();
+            }
+            probe = probe.getParent();
         }
-        
-        return parentPath.toString();
+
+        logger.error("Cannot determine workspace root from current directory: {}", currentDir);
+        throw new IOException("Cannot determine parent directory. Please run from within the project folder.");
     }
 
     /**

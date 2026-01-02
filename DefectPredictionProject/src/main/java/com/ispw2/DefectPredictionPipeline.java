@@ -8,32 +8,58 @@ import com.ispw2.connectors.VersionControlConnector;
 import com.ispw2.connectors.BugTrackingConnector;
 import com.ispw2.model.SoftwareRelease;
 import com.ispw2.preprocessing.DatasetPreprocessor;
+import com.ispw2.util.LoggingUtils;
+import com.ispw2.util.FileUtils;
+import com.ispw2.util.LoggingPatterns;
+import com.ispw2.util.ValidationUtils;
+import com.ispw2.util.ApplicationConstants;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.slf4j.bridge.SLF4JBridgeHandler;
+import java.util.Scanner;
 import weka.classifiers.Classifier;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class DefectPredictionPipeline {
 
     private static final Logger log = LoggerFactory.getLogger(DefectPredictionPipeline.class);
+    
+    // Constants for project configuration
     private static final List<SoftwareProject> PROJECTS_TO_ANALYZE = Arrays.asList(
             new SoftwareProject("BOOKKEEPER", "https://github.com/apache/bookkeeper.git"),
             new SoftwareProject("OPENJPA", "https://github.com/apache/openjpa.git")
     );
 
-    private static final String DATASETS_DIR_NAME = "datasets";
-    private static final String GIT_PROJECTS_DIR_NAME = "github_projects";
+    // Directory names
+    private static final String DATASETS_DIR_NAME = ApplicationConstants.DATASETS_DIR_NAME;
+    private static final String GIT_PROJECTS_DIR_NAME = ApplicationConstants.GIT_PROJECTS_DIR_NAME;
+    private static final String AFMETHOD_REFACTORED_DIR = ApplicationConstants.AFMETHOD_REFACTORED_DIR;
+    
+    // File extensions
+    private static final String CSV_EXTENSION = ApplicationConstants.CSV_EXTENSION;
+    private static final String ARFF_EXTENSION = ApplicationConstants.ARFF_EXTENSION;
+    private static final String MODEL_EXTENSION = ApplicationConstants.MODEL_EXTENSION;
+    private static final String AFMETHOD_EXTENSION = ApplicationConstants.AFMETHOD_EXTENSION;
+    private static final String AFMETHOD_REFACTORED_EXTENSION = ApplicationConstants.AFMETHOD_REFACTORED_EXTENSION;
+    private static final String PROCESSED_SUFFIX = ApplicationConstants.PROCESSED_SUFFIX;
+    
+    // Error messages
+    private static final String FATAL_IO_ERROR_MSG = ApplicationConstants.FATAL_IO_ERROR_MSG;
+    private static final String PARENT_DIR_ERROR_MSG = ApplicationConstants.PARENT_DIR_ERROR_MSG;
+    private static final String CLASSIFIER_ERROR_MSG = ApplicationConstants.CLASSIFIER_ERROR_MSG;
+    private static final String ACTIONABLE_FEATURE_ERROR_MSG = ApplicationConstants.ACTIONABLE_FEATURE_ERROR_MSG;
+    private static final String PREPROCESSING_ERROR_MSG = ApplicationConstants.PREPROCESSING_ERROR_MSG;
 
     private static final class ProjectContext {
         private final ConfigurationManager config;
@@ -124,12 +150,12 @@ public class DefectPredictionPipeline {
             }
 
             public Builder releases(List<SoftwareRelease> releases) {
-                this.releases = releases;
+                this.releases = releases != null ? new ArrayList<>(releases) : null;
                 return this;
             }
 
             public Builder releaseCommits(Map<String, RevCommit> releaseCommits) {
-                this.releaseCommits = releaseCommits;
+                this.releaseCommits = releaseCommits != null ? new HashMap<>(releaseCommits) : null;
                 return this;
             }
 
@@ -146,45 +172,107 @@ public class DefectPredictionPipeline {
      * @param args Command line arguments (currently unused)
      */
     public static void main(final String[] args) {
-        SLF4JBridgeHandler.removeHandlersForRootLogger();
-        SLF4JBridgeHandler.install();
-        
-        log.info("Starting Defect Prediction Analysis...");
+        initializeLogging();
+        LoggingPatterns.info(log, "Starting Defect Prediction Analysis...");
         
         final ConfigurationManager config = new ConfigurationManager();
 
         try {
-            log.debug("Setting up project directories...");
-            final String executionDir = System.getProperty("user.dir");
-            final Path projectRoot = Paths.get(executionDir).getParent();
-            
+            final Path projectRoot = determineProjectRoot();
             if (projectRoot == null) {
-                log.error("Cannot determine parent directory. Please run from within the project folder.");
                 return;
             }
-            
-            if(log.isDebugEnabled()){
-                log.debug("Execution directory: {}", executionDir);
-                log.debug("Project root determined as: {}", projectRoot);
-            }
-            
-            final Path datasetsPath = projectRoot.resolve(DATASETS_DIR_NAME);
-            final Path gitProjectsPath = projectRoot.resolve(GIT_PROJECTS_DIR_NAME);
-            Files.createDirectories(datasetsPath);
-            Files.createDirectories(gitProjectsPath);
-            
-            if (log.isInfoEnabled()) {
-                log.info("Output for datasets: {}", datasetsPath);
-                log.info("Output for git clones: {}", gitProjectsPath);
-            }
 
-            processAllProjects(config, datasetsPath, gitProjectsPath);
+            final Path[] paths = setupProjectDirectories(projectRoot);
+
+            // Interactive menu to choose which project to run
+            try (Scanner scanner = new Scanner(System.in)) {
+                LoggingPatterns.info(log, "Select project to analyze:");
+                for (int i = 0; i < PROJECTS_TO_ANALYZE.size(); i++) {
+                    LoggingPatterns.info(log, "  {} ) {}", i + 1, PROJECTS_TO_ANALYZE.get(i).name());
+                }
+                LoggingPatterns.info(log, "  a) All projects");
+                LoggingPatterns.info(log, "  q) Quit");
+                LoggingPatterns.info(log, "Enter choice (1/2/a/q):");
+                final String choice = scanner.nextLine().trim();
+
+                if (choice.equalsIgnoreCase("q")) {
+                    LoggingPatterns.info(log, "User aborted. Exiting.");
+                    return;
+                }
+
+                if (choice.equalsIgnoreCase("a")) {
+                    // Process all configured projects
+                    processAllProjects(config, paths[0], paths[1]);
+                    return;
+                }
+
+                try {
+                    final int index = Integer.parseInt(choice) - 1;
+                    if (index < 0 || index >= PROJECTS_TO_ANALYZE.size()) {
+                        log.error("Invalid selection '{}'. Exiting.", choice);
+                        return;
+                    }
+                    final SoftwareProject selected = PROJECTS_TO_ANALYZE.get(index);
+                    MDC.put("projectName", selected.name());
+                    runPipelineFor(config, selected, paths[0].toString(), paths[1].toString());
+                } catch (NumberFormatException nfe) {
+                    log.error("Invalid input '{}'. Expected a number or 'q'.", choice);
+                }
+            }
 
         } catch (final IOException e) {
-            log.error("A fatal I/O error occurred while setting up directories.", e);
+            log.error(FATAL_IO_ERROR_MSG, e);
         }
 
-        log.info("All projects processed and evaluated successfully.");
+        LoggingPatterns.info(log, "Pipeline finished.");
+    }
+    
+    /**
+     * Initializes the logging system.
+     */
+    private static void initializeLogging() {
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
+    }
+    
+    /**
+     * Determines the project root directory.
+     * 
+     * @return The project root path or null if cannot be determined
+     */
+    private static Path determineProjectRoot() {
+        LoggingUtils.debugIfEnabled(log, "Setting up project directories...");
+        try {
+            final String parentDir = FileUtils.getParentDirectory(log);
+            final Path projectRoot = Paths.get(parentDir);
+            
+            LoggingUtils.debugIfEnabled(log, "Project root determined as: {}", projectRoot);
+            return projectRoot;
+        } catch (final IOException e) {
+            log.error(PARENT_DIR_ERROR_MSG, e);
+            return null;
+        }
+    }
+    
+    /**
+     * Sets up the necessary project directories.
+     * 
+     * @param projectRoot The project root directory
+     * @return Array containing [datasetsPath, gitProjectsPath]
+     * @throws IOException If directory creation fails
+     */
+    private static Path[] setupProjectDirectories(final Path projectRoot) throws IOException {
+        final Path datasetsPath = projectRoot.resolve(DATASETS_DIR_NAME);
+        final Path gitProjectsPath = projectRoot.resolve(GIT_PROJECTS_DIR_NAME);
+        
+        FileUtils.createDirectoryIfNotExists(datasetsPath.toString(), log);
+        FileUtils.createDirectoryIfNotExists(gitProjectsPath.toString(), log);
+        
+        LoggingPatterns.logFileOperation(log, "Output for datasets", datasetsPath.toString());
+        LoggingPatterns.logFileOperation(log, "Output for git clones", gitProjectsPath.toString());
+        
+        return new Path[]{datasetsPath, gitProjectsPath};
     }
 
     /**
@@ -196,20 +284,20 @@ public class DefectPredictionPipeline {
      * @param gitProjectsPath Path where Git repositories will be cloned
      */
     private static void processAllProjects(ConfigurationManager config, Path datasetsPath, Path gitProjectsPath) {
-        log.debug("Starting to process all configured projects...");
+        LoggingUtils.debugIfEnabled(log, "Starting to process all configured projects...");
         for (final SoftwareProject project : PROJECTS_TO_ANALYZE) {
             MDC.put("projectName", project.name());
-            log.debug("--- Start processing project: {} ---", project.name());
+            LoggingUtils.debugIfEnabled(log, "--- Start processing project: {} ---", project.name());
             try {
                 runPipelineFor(config, project, datasetsPath.toString(), gitProjectsPath.toString());
             } catch (Exception e) {
                 log.error("A fatal error occurred during the pipeline for project {}. Moving to the next one.", project.name(), e);
             } finally {
-                log.debug("--- Finished processing project: {} ---", project.name());
+                LoggingUtils.debugIfEnabled(log, "--- Finished processing project: {} ---", project.name());
                 MDC.clear();
             }
         }
-        log.debug("All configured projects have been processed.");
+        LoggingUtils.debugIfEnabled(log, "All configured projects have been processed.");
     }
 
     /**
@@ -222,15 +310,45 @@ public class DefectPredictionPipeline {
      * @param gitProjectsPath Path for Git repository storage
      * @throws IOException If file operations fail
      */
-    private static void runPipelineFor(ConfigurationManager config, final SoftwareProject project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
-        log.info("---------------------------------------------------------");
-        log.info("--- STARTING PIPELINE FOR: {} ---", project.name());
-        log.info("---------------------------------------------------------");
+    private static void runPipelineFor(final ConfigurationManager config, final SoftwareProject project, final String datasetsBasePath, final String gitProjectsPath) throws IOException {
+        logPipelineStart(project.name());
 
-        final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + ".csv").toString();
-        final String processedArffPath = Paths.get(datasetsBasePath, project.name() + "_processed.arff").toString();
+        final ProjectContext context = buildProjectContext(config, project, datasetsBasePath, gitProjectsPath);
+        
+        LoggingUtils.debugIfEnabled(log, "Created project context for pipeline: {}", context);
+
+        executePipelineSteps(context);
+        
+        LoggingPatterns.logPipelineFinish(log, project.name());
+    }
+    
+    /**
+     * Logs the start of pipeline execution.
+     * 
+     * @param projectName The name of the project being processed
+     */
+    private static void logPipelineStart(final String projectName) {
+        LoggingPatterns.logPipelineStart(log, projectName);
+    }
+    
+    /**
+     * Builds the project context with all necessary components.
+     * 
+     * @param config Configuration manager
+     * @param project The software project
+     * @param datasetsBasePath Base path for datasets
+     * @param gitProjectsPath Path for Git repositories
+     * @return The built project context
+     * @throws IOException If Git operations fail
+     */
+    private static ProjectContext buildProjectContext(final ConfigurationManager config, 
+                                                    final SoftwareProject project, 
+                                                    final String datasetsBasePath, 
+                                                    final String gitProjectsPath) throws IOException {
+        final String originalCsvPath = Paths.get(datasetsBasePath, project.name() + CSV_EXTENSION).toString();
+        final String processedArffPath = Paths.get(datasetsBasePath, project.name() + PROCESSED_SUFFIX + ARFF_EXTENSION).toString();
         final String repoPath = Paths.get(gitProjectsPath, project.name()).toString();
-        final String modelPath = Paths.get(datasetsBasePath, project.name() + "_best.model").toString();
+        final String modelPath = Paths.get(datasetsBasePath, project.name() + MODEL_EXTENSION).toString();
 
         final VersionControlConnector git = new VersionControlConnector(project.name(), project.gitUrl(), repoPath);
         git.cloneOrOpenRepo(); 
@@ -239,7 +357,7 @@ public class DefectPredictionPipeline {
         final List<SoftwareRelease> releases = jira.getProjectReleases();
         final Map<String, RevCommit> releaseCommits = git.getReleaseCommits(releases);
         
-        ProjectContext context = new ProjectContext.Builder()
+        return new ProjectContext.Builder()
                 .config(config)
                 .projectName(project.name())
                 .datasetsBasePath(datasetsBasePath)
@@ -251,16 +369,18 @@ public class DefectPredictionPipeline {
                 .releases(releases)
                 .releaseCommits(releaseCommits)
                 .build();
-        
-        if (log.isDebugEnabled()) {
-            log.debug("Created project context for pipeline: {}", context);
-        }
-
+    }
+    
+    /**
+     * Executes all pipeline steps for the project.
+     * 
+     * @param context The project context
+     * @throws IOException If pipeline steps fail
+     */
+    private static void executePipelineSteps(final ProjectContext context) throws IOException {
         generateDatasetIfNotExists(context);
         preprocessData(context);
         runAnalysisAndSimulation(context);
-        
-        log.info("--- FINISHED PIPELINE FOR: {} ---", project.name());
     }
 
     /**
@@ -270,30 +390,104 @@ public class DefectPredictionPipeline {
      * 
      * @param context Project context containing all necessary data and configurations
      */
-    private static void runAnalysisAndSimulation(ProjectContext context) {
+    private static void runAnalysisAndSimulation(final ProjectContext context) {
+        try {
+            final Classifier bestModel = trainBestClassifier(context);
+            if (bestModel == null) {
+                return;
+            }
+            
+            final String aFeature = findActionableFeature(context);
+            if (aFeature == null) {
+                return;
+            }
+
+            runSimulationAndComparison(context, bestModel, aFeature);
+
+        } catch (final Exception e) {
+            log.error("An error occurred during analysis and simulation for project {}", context.projectName(), e);
+        }
+    }
+    
+    /**
+     * Trains the best classifier for the project.
+     * 
+     * @param context The project context
+     * @return The best classifier or null if training fails
+     */
+    private static Classifier trainBestClassifier(final ProjectContext context) {
         try {
             final MachineLearningModelTrainer runner = new MachineLearningModelTrainer(context.config(), context.processedArffPath(), context.modelPath());
             final Classifier bestModel = runner.getBestClassifier();
             
+            if (bestModel == null) {
+                log.error(CLASSIFIER_ERROR_MSG, context.projectName());
+            }
+            
+            return bestModel;
+        } catch (final IOException e) {
+            log.error("Failed to train classifier for project {}", context.projectName(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Finds the actionable feature for the project.
+     * 
+     * @param context The project context
+     * @return The actionable feature name or null if not found
+     */
+    private static String findActionableFeature(final ProjectContext context) {
+        try {
             final CodeQualityAnalyzer analyzer = new CodeQualityAnalyzer(context.config(), context.originalCsvPath(), context.processedArffPath(), context.git(), context.releaseCommits());
             final String aFeature = analyzer.findAndSaveActionableMethod();
 
+            if (aFeature == null) {
+                log.error(ACTIONABLE_FEATURE_ERROR_MSG, context.projectName());
+            }
+            
+            return aFeature;
+        } catch (final IOException e) {
+            log.error("Failed to find actionable feature for project {}", context.projectName(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Runs the simulation and method comparison.
+     * 
+     * @param context The project context
+     * @param bestModel The trained classifier
+     * @param aFeature The actionable feature
+     */
+    private static void runSimulationAndComparison(final ProjectContext context, final Classifier bestModel, final String aFeature) {
+        try {
             final RefactoringImpactAnalyzer simulator = new RefactoringImpactAnalyzer(context.processedArffPath(), bestModel, aFeature);
             simulator.runFullDatasetSimulation();
 
-            final String originalMethodPath = Paths.get(context.datasetsBasePath(), context.projectName() + "_AFMethod.txt").toString();
-            final Path projectParentPath = Paths.get(context.datasetsBasePath()).getParent();
-            final String refactoredMethodPath = projectParentPath.resolve("AFMethod_refactored").resolve(context.projectName() + "_AFMethod_refactored.txt").toString();
+            final String[] methodPaths = buildMethodPaths(context);
             
-            if (log.isDebugEnabled()){
-                log.debug("Comparing original method at '{}' with refactored method at '{}'", originalMethodPath, refactoredMethodPath);
-            }
+            LoggingUtils.debugIfEnabled(log, "Comparing original method at '{}' with refactored method at '{}'", methodPaths[0], methodPaths[1]);
+            
             final MethodFeatureComparator comparer = new MethodFeatureComparator();
-            comparer.compareMethods(originalMethodPath, refactoredMethodPath);
-
-        } catch (Exception e) {
-            log.error("An error occurred during analysis and simulation for project {}", context.projectName(), e);
+            comparer.compareMethods(methodPaths[0], methodPaths[1]);
+        } catch (final IOException e) {
+            log.error("Failed to run simulation and comparison for project {}", context.projectName(), e);
         }
+    }
+    
+    /**
+     * Builds the paths for original and refactored method files.
+     * 
+     * @param context The project context
+     * @return Array containing [originalMethodPath, refactoredMethodPath]
+     */
+    private static String[] buildMethodPaths(final ProjectContext context) {
+        final String originalMethodPath = Paths.get(context.datasetsBasePath(), context.projectName() + AFMETHOD_EXTENSION).toString();
+        final Path projectParentPath = Paths.get(context.datasetsBasePath()).getParent();
+        final String refactoredMethodPath = projectParentPath.resolve(AFMETHOD_REFACTORED_DIR).resolve(context.projectName() + AFMETHOD_REFACTORED_EXTENSION).toString();
+        
+        return new String[]{originalMethodPath, refactoredMethodPath};
     }
 
     /**
@@ -302,18 +496,44 @@ public class DefectPredictionPipeline {
      * 
      * @param context Project context containing dataset paths and configurations
      */
-    private static void generateDatasetIfNotExists(ProjectContext context) {
-        log.info("[Milestone 1, Step 1] Checking for Dataset...");
+    private static void generateDatasetIfNotExists(final ProjectContext context) {
+        LoggingPatterns.logMilestone(log, 1, 1, "Checking for Dataset...");
         final File datasetFile = new File(context.originalCsvPath());
-        log.debug("Checking for dataset file at: {}", context.originalCsvPath());
+        LoggingUtils.debugIfEnabled(log, "Checking for dataset file at: {}", context.originalCsvPath());
         
-        if (datasetFile.exists() && datasetFile.length() > 0) {
-            log.info("Dataset already exists. Skipping generation.");
+        if (isDatasetValid(datasetFile)) {
+            LoggingPatterns.info(log, "Dataset already exists. Skipping generation.");
         } else {
-            log.info("Dataset not found or is empty. Generating...");
-            final ProjectDatasetBuilder generator = new ProjectDatasetBuilder(context.config(), context.projectName(), context.git(), context.jira(), context.releases(), context.releaseCommits());
-            generator.generateCsv(context.datasetsBasePath());
+            generateNewDataset(context);
         }
+    }
+    
+    /**
+     * Checks if the dataset file is valid (exists and not empty).
+     * 
+     * @param datasetFile The dataset file to check
+     * @return true if the dataset is valid, false otherwise
+     */
+    private static boolean isDatasetValid(final File datasetFile) {
+        return ValidationUtils.isValidFile(datasetFile.getAbsolutePath(), log);
+    }
+    
+    /**
+     * Generates a new dataset for the project.
+     * 
+     * @param context The project context
+     */
+    private static void generateNewDataset(final ProjectContext context) {
+        LoggingPatterns.info(log, "Dataset not found or is empty. Generating...");
+        final ProjectDatasetBuilder generator = new ProjectDatasetBuilder(
+            context.config(), 
+            context.projectName(), 
+            context.git(), 
+            context.jira(), 
+            context.releases(), 
+            context.releaseCommits()
+        );
+        generator.generateCsv(context.datasetsBasePath());
     }
 
     /**
@@ -323,21 +543,42 @@ public class DefectPredictionPipeline {
      * @param context Project context containing dataset paths and configurations
      * @throws IOException If preprocessing fails
      */
-    private static void preprocessData(ProjectContext context) throws IOException {
-        log.info("[...] Preprocessing data for analysis...");
+    private static void preprocessData(final ProjectContext context) throws IOException {
+        LoggingPatterns.info(log, "Preprocessing data for analysis...");
         final File arffFile = new File(context.processedArffPath());
-        log.debug("Checking for preprocessed file at: {}", context.processedArffPath());
-        if (arffFile.exists() && arffFile.length() > 0) {
-            log.info("Processed ARFF file already exists. Skipping preprocessing.");
+        LoggingUtils.debugIfEnabled(log, "Checking for preprocessed file at: {}", context.processedArffPath());
+        
+        if (isArffFileValid(arffFile)) {
+            LoggingPatterns.info(log, "Processed ARFF file already exists. Skipping preprocessing.");
         } else {
-            log.info("ARFF file not found. Starting preprocessing...");
-            try {
-                final DatasetPreprocessor processor = new DatasetPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
-                processor.processData();
-                log.info("Data preprocessing complete. Output: {}", context.processedArffPath());
-            } catch (Exception e) {
-                throw new IOException("Failed to preprocess data", e);
-            }
+            performDataPreprocessing(context);
+        }
+    }
+    
+    /**
+     * Checks if the ARFF file is valid (exists and not empty).
+     * 
+     * @param arffFile The ARFF file to check
+     * @return true if the file is valid, false otherwise
+     */
+    private static boolean isArffFileValid(final File arffFile) {
+        return ValidationUtils.isValidFile(arffFile.getAbsolutePath(), log);
+    }
+    
+    /**
+     * Performs the actual data preprocessing.
+     * 
+     * @param context The project context
+     * @throws IOException If preprocessing fails
+     */
+    private static void performDataPreprocessing(final ProjectContext context) throws IOException {
+        LoggingPatterns.info(log, "ARFF file not found. Starting preprocessing...");
+        try {
+            final DatasetPreprocessor processor = new DatasetPreprocessor(context.config(), context.originalCsvPath(), context.processedArffPath());
+            processor.processData();
+            LoggingPatterns.logFileOperation(log, "Data preprocessing complete. Output", context.processedArffPath());
+        } catch (final Exception e) {
+            throw new IOException(PREPROCESSING_ERROR_MSG, e);
         }
     }
 }

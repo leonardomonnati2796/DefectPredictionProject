@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -99,41 +100,7 @@ public class DatasetPreprocessor {
         log.debug("Instances after NominalToBinary filter: {}", finalData.numInstances());
         
         saveToArff(finalData, this.outputArffPath);
-
-        // If minority class ("yes") < 20%, also generate a balanced dataset variant using oversampling
-        try {
-            final int yesIndex = finalData.classAttribute().indexOfValue("yes");
-            if (yesIndex != -1) {
-                int yesCount = 0;
-                for (int i = 0; i < finalData.numInstances(); i++) {
-                    if ((int) finalData.instance(i).classValue() == yesIndex) yesCount++;
-                }
-                double minorityRatio = (finalData.numInstances() > 0) ? ((double) yesCount) / finalData.numInstances() : 0.0;
-                log.info("Minority class ratio (yes): {}%", String.format(Locale.US, "%.2f", minorityRatio * 100));
-                if (minorityRatio < 0.20) {
-                    // Simple random oversampling of minority to roughly 30%
-                    final Instances balanced = new Instances(finalData);
-                    final java.util.Random rnd = new java.util.Random(42);
-                    final int targetYes = Math.max(1, (int) Math.round(0.3 * finalData.numInstances()));
-                    final List<weka.core.Instance> yesInstances = new ArrayList<>();
-                    for (int i = 0; i < finalData.numInstances(); i++) {
-                        if ((int) finalData.instance(i).classValue() == yesIndex) {
-                            yesInstances.add(finalData.instance(i));
-                        }
-                    }
-                    while (yesInstances.size() > 0 && yesCount < targetYes) {
-                        final weka.core.Instance sample = yesInstances.get(rnd.nextInt(yesInstances.size()));
-                        balanced.add(sample);
-                        yesCount++;
-                    }
-                    saveToArff(balanced, this.outputArffPath.replace(".arff", "_balanced.arff"));
-                    log.info("Balanced dataset written to {}", this.outputArffPath.replace(".arff", "_balanced.arff"));
-                }
-            }
-        } catch (Exception balanceEx) {
-            log.warn("Could not generate balanced dataset variant: {}", balanceEx.getMessage());
-        }
-        log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numAttributes(), finalData.numInstances());
+        log.info("Preprocessing complete. Final dataset has {} instances and {} attributes.", finalData.numInstances(), finalData.numAttributes());
     }
 
     /**
@@ -146,7 +113,7 @@ public class DatasetPreprocessor {
     private Instances loadCsvManually(final String csvPath) throws IOException {
         Locale.setDefault(Locale.US);
         final CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();
-        try (Reader reader = new FileReader(csvPath);
+        try (Reader reader = new FileReader(csvPath, StandardCharsets.UTF_8);
              CSVParser parser = new CSVParser(reader, format)) {
 
             final List<String> headers = parser.getHeaderNames();

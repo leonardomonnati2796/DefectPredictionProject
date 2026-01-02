@@ -3,9 +3,9 @@ package com.ispw2.analysis;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.expr.ConditionalExpr;
 import com.github.javaparser.ast.stmt.*;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.ispw2.util.CollectionUtils;
 
 /**
  * Utility class for calculating code quality metrics from Java method AST nodes.
@@ -24,11 +24,10 @@ public final class CodeMetricsCalculator {
      * @return Map containing all calculated metrics
      */
     public static Map<String, Number> calculateAll(final CallableDeclaration<?> callable) {
-        final Map<String, Number> features = new HashMap<>();
+        final Map<String, Number> features = CollectionUtils.createHashMap();
         features.put(CodeQualityMetrics.CODE_SMELLS, calculateCodeSmells(callable));
         features.put(CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, calculateCyclomaticComplexity(callable));
         features.put(CodeQualityMetrics.PARAMETER_COUNT, callable.getParameters().size());
-        features.put(CodeQualityMetrics.NESTING_DEPTH, calculateMaxNestingDepth(callable));
         return features;
     }
 
@@ -75,31 +74,5 @@ public final class CodeMetricsCalculator {
             }
         });
         return complexity.get();
-    }
-
-    public static int calculateMaxNestingDepth(final CallableDeclaration<?> callable) {
-        final AtomicInteger depth = new AtomicInteger(0);
-        final AtomicInteger maxDepth = new AtomicInteger(0);
-
-        callable.walk(node -> {
-            boolean increases =
-                node instanceof IfStmt ||
-                node instanceof ForStmt ||
-                node instanceof ForEachStmt ||
-                node instanceof WhileStmt ||
-                node instanceof DoStmt ||
-                node instanceof SwitchStmt ||
-                node instanceof TryStmt ||
-                node instanceof BlockStmt;
-
-            if (increases) {
-                int current = depth.incrementAndGet();
-                if (current > maxDepth.get()) {
-                    maxDepth.set(current);
-                }
-            }
-        });
-
-        return Math.max(1, maxDepth.get());
     }
 }
