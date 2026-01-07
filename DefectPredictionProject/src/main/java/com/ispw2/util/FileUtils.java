@@ -77,7 +77,7 @@ public final class FileUtils {
             final Path candidate3 = probe.resolve("pom.xml");
 
             if (Files.exists(candidate1) || Files.exists(candidate2) || Files.exists(candidate3)) {
-                logger.debug("Determined workspace root at: {}", probe.toString());
+                logger.debug("Determined workspace root at: {}", probe);
                 return probe.toString();
             }
             probe = probe.getParent();
