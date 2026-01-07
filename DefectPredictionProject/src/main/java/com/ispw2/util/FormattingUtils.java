@@ -68,7 +68,11 @@ public final class FormattingUtils {
         if (number == null) {
             return "0." + "0".repeat(decimalPlaces) + "%";
         }
-        return String.format(Locale.US, "%." + decimalPlaces + "f%%", number.doubleValue() * 100);
+        final NumberFormat formatter = NumberFormat.getNumberInstance(Locale.US);
+        formatter.setMinimumFractionDigits(decimalPlaces);
+        formatter.setMaximumFractionDigits(decimalPlaces);
+        formatter.setGroupingUsed(false);
+        return formatter.format(number.doubleValue() * 100) + "%";
     }
 
     /**
