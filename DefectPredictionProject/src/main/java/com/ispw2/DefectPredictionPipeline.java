@@ -207,18 +207,7 @@ public class DefectPredictionPipeline {
                     return;
                 }
 
-                try {
-                    final int index = Integer.parseInt(choice) - 1;
-                    if (index < 0 || index >= PROJECTS_TO_ANALYZE.size()) {
-                        log.error("Invalid selection '{}'. Exiting.", choice);
-                        return;
-                    }
-                    final SoftwareProject selected = PROJECTS_TO_ANALYZE.get(index);
-                    MDC.put("projectName", selected.name());
-                    runPipelineFor(config, selected, paths[0].toString(), paths[1].toString());
-                } catch (NumberFormatException nfe) {
-                    log.error("Invalid input '{}'. Expected a number or 'q'.", choice);
-                }
+                handleProjectSelection(config, choice, paths[0], paths[1]);
             }
 
         } catch (final IOException e) {
@@ -234,6 +223,28 @@ public class DefectPredictionPipeline {
     private static void initializeLogging() {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
+    }
+
+    /**
+     * Parses the user's selection and runs the pipeline for the chosen project.
+     * Extracted from the main method to reduce nesting and complexity.
+     */
+    private static void handleProjectSelection(final ConfigurationManager config, final String choice,
+                                               final Path datasetsPath, final Path gitProjectsPath) {
+        try {
+            final int index = Integer.parseInt(choice) - 1;
+            if (index < 0 || index >= PROJECTS_TO_ANALYZE.size()) {
+                log.error("Invalid selection '{}'. Exiting.", choice);
+                return;
+            }
+            final SoftwareProject selected = PROJECTS_TO_ANALYZE.get(index);
+            MDC.put("projectName", selected.name());
+            runPipelineFor(config, selected, datasetsPath.toString(), gitProjectsPath.toString());
+        } catch (final NumberFormatException nfe) {
+            log.error("Invalid input '{}'. Expected a number or 'q'.", choice);
+        } catch (final IOException ioe) {
+            log.error(FATAL_IO_ERROR_MSG, ioe);
+        }
     }
     
     /**
