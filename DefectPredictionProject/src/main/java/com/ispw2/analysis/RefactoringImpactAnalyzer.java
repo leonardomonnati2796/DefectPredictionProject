@@ -109,7 +109,7 @@ public class RefactoringImpactAnalyzer {
             classifier.buildClassifier(trainingData);
             return classifier;
         } catch (final ReflectiveOperationException e) {
-            handleReflectionError(e);
+            handleReflectionError();
             throw new ClassifierTrainingException("Cannot instantiate classifier for refactored dataset: " + e.getMessage(), e);
         } catch (final Exception e) {
             handleTrainingError(e);
@@ -120,9 +120,8 @@ public class RefactoringImpactAnalyzer {
     /**
      * Handles reflection errors during classifier instantiation.
      * 
-     * @param e The reflection operation exception
      */
-    private void handleReflectionError(final ReflectiveOperationException e) {
+    private void handleReflectionError() {
         log.warn("Attempting to handle reflection error for classifier creation of type {}", 
                 bClassifier.getClass().getSimpleName());
         tryAlternativeInstantiation();
