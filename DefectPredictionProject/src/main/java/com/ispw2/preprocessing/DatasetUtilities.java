@@ -103,43 +103,18 @@ public final class DatasetUtilities {
             return 0;
         }
 
-        // Ensure class index is set
-        if (data.classIndex() == -1) {
-            data.setClassIndex(data.numAttributes() - 1);
-        }
+        ensureClassIndex(data);
 
-        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(data.classAttribute());
-        if (buggyClassIndexOpt.isEmpty()) {
-            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 predicted defects.");
+        final int buggyIndex = getBuggyClassIndexOrWarn(data.classAttribute());
+        if (buggyIndex < 0) {
             return 0;
         }
 
-        final int buggyIndex = buggyClassIndexOpt.get();
-        int defectiveCount = 0;
-        int seen = 0;
-
+        if (log.isInfoEnabled()) {
             log.info("Class attribute '{}' values = {} ; buggyIndex={}", data.classAttribute().name(), data.classAttribute().toString(), buggyIndex);
-
-        for (final Instance instance : data) {
-            try {
-                final double[] dist = model.distributionForInstance(instance);
-                final double probYes = (buggyIndex >= 0 && buggyIndex < dist.length) ? dist[buggyIndex] : 0.0;
-                if (seen < 5) {
-                    log.info("Probability for 'buggy' class on instance {}: {}", seen + 1, probYes);
-                }
-                if (probYes >= 0.5) {
-                    defectiveCount++;
-                }
-            } catch (final Exception e) {
-                if (seen < 5) {
-                    log.warn("Could not classify instance (first {} occurrences logged). Reason: {}", 5, e.getMessage());
-                }
-            }
-            seen++;
         }
 
-        log.debug("Found {} PREDICTED defective instances.", defectiveCount);
-        return defectiveCount;
+        return countPredictedDefects(model, data, buggyIndex);
     }
 
     /**
@@ -179,6 +154,61 @@ public final class DatasetUtilities {
             }
         }
         return sum;
+    }
+
+    /**
+     * Ensures the class index is set to the last attribute if missing.
+     */
+    private static void ensureClassIndex(final Instances data) {
+        if (data.classIndex() == -1) {
+            data.setClassIndex(data.numAttributes() - 1);
+        }
+    }
+
+    /**
+     * Retrieves the buggy class index or logs a warning and returns -1 if not found.
+     */
+    private static int getBuggyClassIndexOrWarn(final Attribute classAttribute) {
+        final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(classAttribute);
+        if (buggyClassIndexOpt.isEmpty()) {
+            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 predicted defects.");
+            return -1;
+        }
+        return buggyClassIndexOpt.get();
+    }
+
+    /**
+     * Counts predicted defects using model distribution with limited diagnostic logging.
+     */
+    private static int countPredictedDefects(final Classifier model, final Instances data, final int buggyIndex) {
+        int defectiveCount = 0;
+        int seen = 0;
+        for (final Instance instance : data) {
+            try {
+                final double probYes = getBuggyProbability(model, instance, buggyIndex);
+                if (seen < 5 && log.isInfoEnabled()) {
+                    log.info("Probability for 'buggy' class on instance {}: {}", seen + 1, probYes);
+                }
+                if (probYes >= 0.5) {
+                    defectiveCount++;
+                }
+            } catch (final Exception e) {
+                if (seen < 5) {
+                    log.warn("Could not classify instance (first {} occurrences logged). Reason: {}", 5, e.getMessage());
+                }
+            }
+            seen++;
+        }
+        log.debug("Found {} PREDICTED defective instances.", defectiveCount);
+        return defectiveCount;
+    }
+
+    /**
+     * Safely retrieves the probability for the buggy class from the distribution.
+     */
+    private static double getBuggyProbability(final Classifier model, final Instance instance, final int buggyIndex) throws Exception {
+        final double[] dist = model.distributionForInstance(instance);
+        return (buggyIndex >= 0 && buggyIndex < dist.length) ? dist[buggyIndex] : 0.0;
     }
     
     /**
