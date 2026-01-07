@@ -213,7 +213,9 @@ public class MethodFeatureComparator {
             final java.nio.file.Path altFile = outDir.resolve("method_feature_comparison_" + ts + ".csv");
             java.nio.file.Files.write(altFile, csvLines, java.nio.charset.StandardCharsets.UTF_8,
                     java.nio.file.StandardOpenOption.CREATE_NEW);
-            log.info("Feature comparison CSV written to fallback file: {}", altFile);
+            if (log.isInfoEnabled()) {
+                log.info("Feature comparison CSV written to fallback file: {}", altFile);
+            }
         } catch (final IOException altEx) {
             log.warn("Fallback write also failed: {}", altEx.getMessage());
             log.debug("Fallback stacktrace:", altEx);
