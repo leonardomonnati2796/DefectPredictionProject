@@ -43,9 +43,9 @@ public final class CsvHeadersUtils {
      * Legacy CSV headers for backward compatibility.
      * Used in older versions of the dataset builder.
      */
-    public static final String[] LEGACY_METHOD_DATASET_HEADERS = {
+    protected static final String[] LEGACY_METHOD_DATASET_HEADERS = {
         PROJECT_HEADER, 
-        "MethodName", 
+        METHOD_NAME_HEADER, 
         RELEASE_HEADER, 
         "CodeSmells", 
         "CyclomaticComplexity", 
