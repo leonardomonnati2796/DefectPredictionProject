@@ -111,7 +111,7 @@ public final class DatasetUtilities {
         }
 
         if (log.isInfoEnabled()) {
-            log.info("Class attribute '{}' values = {} ; buggyIndex={}", data.classAttribute().name(), data.classAttribute().toString(), buggyIndex);
+            log.info("Class attribute '{}' values = {} ; buggyIndex={}", data.classAttribute().name(), data.classAttribute(), buggyIndex);
         }
 
         return countPredictedDefects(model, data, buggyIndex);
@@ -230,7 +230,9 @@ public final class DatasetUtilities {
 
         final Optional<Integer> buggyClassIndexOpt = findBuggyClassIndex(data.classAttribute());
         if (buggyClassIndexOpt.isEmpty()) {
-            log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 {} defects.", type.toLowerCase());
+            if (log.isWarnEnabled()) {
+                log.warn("Could not find a 'buggy' class label ('yes' or '1'). Returning 0 {} defects.", type.toLowerCase());
+            }
             return 0;
         }
         final double buggyClassIndex = buggyClassIndexOpt.get();
