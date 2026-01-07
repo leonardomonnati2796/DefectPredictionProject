@@ -22,7 +22,7 @@ public final class CsvHeadersUtils {
      * Includes project information, method identification, code quality metrics,
      * version control metrics, change metrics, and bug classification.
      */
-    public static final String[] METHOD_DATASET_HEADERS = {
+    protected static final String[] METHOD_DATASET_HEADERS = {
         PROJECT_HEADER, 
         METHOD_NAME_HEADER, 
         RELEASE_HEADER, 

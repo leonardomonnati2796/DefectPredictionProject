@@ -258,7 +258,7 @@ public class RefactoringImpactAnalyzer {
 
         logFormulaComponents(actualDefectsInBplus, predictedDefectsInB, actualDefectsInA);
 
-        final double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
+        final double numerator = actualDefectsInBplus - predictedDefectsInB;
 
         analyzeDropMetric(numerator, actualDefectsInBplus, predictedDefectsInB);
         analyzeReductionMetric(numerator, actualDefectsInA, predictedDefectsInB);

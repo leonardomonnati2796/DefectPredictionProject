@@ -36,14 +36,14 @@ public final class MethodUtils {
      */
     public static String[] parseMethodIdentifier(final String methodIdentifier) {
         if (methodIdentifier == null || methodIdentifier.isEmpty()) {
-            return null;
+            return new String[0];
         }
-        
+
         final int lastSlashIndex = methodIdentifier.lastIndexOf('/');
         if (lastSlashIndex == -1) {
-            return null;
+            return new String[0];
         }
-        
+
         return new String[]{
             methodIdentifier.substring(0, lastSlashIndex),
             methodIdentifier.substring(lastSlashIndex + 1)
