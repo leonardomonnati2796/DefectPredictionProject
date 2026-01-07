@@ -16,6 +16,9 @@ public final class ValidationUtils {
         // Utility class - prevent instantiation
     }
 
+    // Common messages
+    private static final String NUMBER_NULL_MESSAGE = "Number '{}' is null";
+
     /**
      * Validates that a file exists and is readable.
      * 
@@ -153,7 +156,7 @@ public final class ValidationUtils {
      */
     public static boolean isValidNumber(final Number number, final String fieldName, final double minValue, final double maxValue, final Logger logger) {
         if (number == null) {
-            logger.warn("Number '{}' is null", fieldName);
+            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
             return false;
         }
         
@@ -193,7 +196,7 @@ public final class ValidationUtils {
      */
     public static boolean isValidPositiveNumber(final Number number, final String fieldName, final Logger logger) {
         if (number == null) {
-            logger.warn("Number '{}' is null", fieldName);
+            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
             return false;
         }
         
@@ -215,7 +218,7 @@ public final class ValidationUtils {
      */
     public static boolean isValidNonNegativeNumber(final Number number, final String fieldName, final Logger logger) {
         if (number == null) {
-            logger.warn("Number '{}' is null", fieldName);
+            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
             return false;
         }
         
