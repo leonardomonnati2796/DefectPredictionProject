@@ -54,9 +54,11 @@ public class MethodFeatureComparator {
      */
     private java.util.List<String> createComparisonData(final Map<String, Double> originalFeatures, 
                                                          final Map<String, Double> refactoredFeatures) {
-        log.info("Feature comparison results (only actionable features):");
-        log.info(TABLE_HEADER);
-        log.info(String.join("", java.util.Collections.nCopies(74, "-")));
+        if (log.isInfoEnabled()) {
+            log.info("Feature comparison results (only actionable features):");
+            log.info(TABLE_HEADER);
+            log.info(String.join("", java.util.Collections.nCopies(74, "-")));
+        }
 
         final java.util.List<String> actionable = java.util.Arrays.asList(CYCLOMATIC_COMPLEXITY);
         final java.util.List<String> csvLines = new java.util.ArrayList<>();
@@ -70,8 +72,10 @@ public class MethodFeatureComparator {
             final String refactoredStr = formatValue(refactoredValue);
             final String improvementStr = calculateImprovement(originalValue, refactoredValue);
 
-            log.info(String.format(TABLE_ROW_FORMAT, feature, parseOrZero(originalStr), 
+                if (log.isInfoEnabled()) {
+                log.info(String.format(TABLE_ROW_FORMAT, feature, parseOrZero(originalStr), 
                     parseOrZero(refactoredStr), parseOrZero(improvementStr)).replace("NaN", "   n/a"));
+                }
 
             csvLines.add(String.format("%s,%s,%s,%s", feature, originalStr, refactoredStr, improvementStr));
         }
