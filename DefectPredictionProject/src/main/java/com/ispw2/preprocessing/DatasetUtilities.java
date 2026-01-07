@@ -248,7 +248,7 @@ public final class DatasetUtilities {
                 if (result == buggyClassIndex) {
                     defectiveCount++;
                 }
-            } catch (Exception e) {
+            } catch (final ClassificationException e) {
                 if (seen < 5) {
                     log.warn("Could not classify instance (first {} occurrences will be logged). Reason: {}", 5, e.getMessage());
                 }
@@ -264,7 +264,20 @@ public final class DatasetUtilities {
      */
     @FunctionalInterface
     private interface InstanceClassifier {
-        double isDefective(Instance instance) throws Exception;
+        double isDefective(Instance instance) throws ClassificationException;
+    }
+
+    /**
+     * Custom exception for classification errors to avoid generic Exception usage.
+     */
+    private static class ClassificationException extends Exception {
+        ClassificationException(final String message, final Throwable cause) {
+            super(message, cause);
+        }
+
+        ClassificationException(final String message) {
+            super(message);
+        }
     }
     
     /**
