@@ -33,7 +33,7 @@ public final class FileUtils {
                 logger.info("Created directory: {}", dirPath);
             } catch (final IOException e) {
                 logger.error("Failed to create directory: {}", dirPath, e);
-                throw e;
+                throw new IOException("Failed to create directory: " + dirPath, e);
             }
         }
     }
