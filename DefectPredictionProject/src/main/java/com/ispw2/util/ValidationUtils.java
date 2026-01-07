@@ -27,27 +27,16 @@ public final class ValidationUtils {
      * @return true if file is valid, false otherwise
      */
     public static boolean isValidFile(final String filePath, final Logger logger) {
-        if (filePath == null || filePath.trim().isEmpty()) {
-            logger.warn("File path is null or empty");
+        if (!isValidFileForReading(filePath, logger)) {
             return false;
         }
-        
+
         final File file = new File(filePath);
-        if (!file.exists()) {
-            logger.warn("File does not exist: {}", filePath);
-            return false;
-        }
-        
-        if (!file.canRead()) {
-            logger.warn("File is not readable: {}", filePath);
-            return false;
-        }
-        
         if (file.length() == 0) {
             logger.warn("File is empty: {}", filePath);
             return false;
         }
-        
+
         return true;
     }
 
@@ -59,22 +48,21 @@ public final class ValidationUtils {
      * @return true if file is valid, false otherwise
      */
     public static boolean isValidFileForReading(final String filePath, final Logger logger) {
-        if (filePath == null || filePath.trim().isEmpty()) {
-            logger.warn("File path is null or empty");
+        if (!isFilePathValid(filePath, logger)) {
             return false;
         }
-        
+
         final File file = new File(filePath);
         if (!file.exists()) {
             logger.warn("File does not exist: {}", filePath);
             return false;
         }
-        
+
         if (!file.canRead()) {
             logger.warn("File is not readable: {}", filePath);
             return false;
         }
-        
+
         return true;
     }
 
@@ -155,17 +143,16 @@ public final class ValidationUtils {
      * @return true if number is valid, false otherwise
      */
     public static boolean isValidNumber(final Number number, final String fieldName, final double minValue, final double maxValue, final Logger logger) {
-        if (number == null) {
-            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
+        if (!isNumberPresent(number, fieldName, logger)) {
             return false;
         }
-        
+
         final double value = number.doubleValue();
         if (value < minValue || value > maxValue) {
             logger.warn("Number '{}' value {} is outside valid range [{}, {}]", fieldName, value, minValue, maxValue);
             return false;
         }
-        
+
         return true;
     }
 
@@ -195,16 +182,15 @@ public final class ValidationUtils {
      * @return true if number is valid, false otherwise
      */
     public static boolean isValidPositiveNumber(final Number number, final String fieldName, final Logger logger) {
-        if (number == null) {
-            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
+        if (!isNumberPresent(number, fieldName, logger)) {
             return false;
         }
-        
+
         if (number.doubleValue() <= 0) {
             logger.warn("Number '{}' is not positive: {}", fieldName, number);
             return false;
         }
-        
+
         return true;
     }
 
@@ -217,16 +203,31 @@ public final class ValidationUtils {
      * @return true if number is valid, false otherwise
      */
     public static boolean isValidNonNegativeNumber(final Number number, final String fieldName, final Logger logger) {
-        if (number == null) {
-            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
+        if (!isNumberPresent(number, fieldName, logger)) {
             return false;
         }
-        
+
         if (number.doubleValue() < 0) {
             logger.warn("Number '{}' is negative: {}", fieldName, number);
             return false;
         }
-        
+
+        return true;
+    }
+
+    private static boolean isFilePathValid(final String filePath, final Logger logger) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            logger.warn("File path is null or empty");
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isNumberPresent(final Number number, final String fieldName, final Logger logger) {
+        if (number == null) {
+            logger.warn(NUMBER_NULL_MESSAGE, fieldName);
+            return false;
+        }
         return true;
     }
 }
