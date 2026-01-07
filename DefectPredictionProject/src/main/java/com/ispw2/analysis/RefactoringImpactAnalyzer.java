@@ -87,12 +87,12 @@ public class RefactoringImpactAnalyzer {
         analyzeResults(filteredBplus, filteredB, classifierForA);
         } catch (final ClassifierTrainingException e) {
             ExceptionUtils.handleGenericException(log, CLASSIFIER_TRAINING_CONTEXT, e, FEATURE_PREFIX + this.aFeatureName + "'");
-            ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, e, "Using simplified classifier for limited analysis");
+            ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, "Using simplified classifier for limited analysis");
             ExceptionUtils.logCannotProceed(log, SIMULATION_CONTEXT, "without working classifier");
             throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Classifier training failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final DatasetCreationException e) {
             ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + this.aFeatureName + "'");
-            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Creating fallback dataset for limited analysis");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, "Creating fallback dataset for limited analysis");
             throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Dataset creation failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final Exception e) {
             ExceptionUtils.handleGenericException(log, "Simulation", e, FEATURE_PREFIX + this.aFeatureName + "'");
@@ -132,7 +132,7 @@ public class RefactoringImpactAnalyzer {
      * Attempts alternative classifier instantiation methods.
      */
     private void tryAlternativeInstantiation() {
-        ExceptionUtils.attemptRecovery(log, "Classifier instantiation", new Exception("Instantiation failed"), "Using fallback instantiation approach");
+        ExceptionUtils.attemptRecovery(log, "Classifier instantiation", "Using fallback instantiation approach");
     }
     
     /**
@@ -150,7 +150,7 @@ public class RefactoringImpactAnalyzer {
      * Attempts alternative classifier training methods.
      */
     private void tryAlternativeTraining() {
-        ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, new Exception("Training failed"), "Using fallback training approach");
+        ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, "Using fallback training approach");
     }
     
     private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) throws DatasetCreationException {
@@ -175,11 +175,11 @@ public class RefactoringImpactAnalyzer {
             return datasetB;
         } catch (final DatasetCreationException e) {
             ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + featureNameToModify + "'");
-            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Creating simplified dataset B for " + FEATURE_PREFIX + featureNameToModify + "'");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, "Creating simplified dataset B for " + FEATURE_PREFIX + featureNameToModify + "'");
             throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for " + FEATURE_PREFIX + featureNameToModify + "'", e), e);
         } catch (final Exception e) {
             ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + featureNameToModify + "'");
-            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Using fallback dataset creation approach");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, "Using fallback dataset creation approach");
             ExceptionUtils.logCannotProceed(log, SIMULATION_CONTEXT, "due to dataset creation error");
             throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for " + FEATURE_PREFIX + featureNameToModify + "'", e), e);
         }

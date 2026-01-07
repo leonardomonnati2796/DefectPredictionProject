@@ -47,7 +47,7 @@ public final class ExceptionUtils {
      * @param fallbackMessage Message to log when attempting fallback
      * @return true if recovery was attempted, false otherwise
      */
-    public static boolean attemptRecovery(final Logger logger, final String operation, final Exception exception, final String fallbackMessage) {
+    public static boolean attemptRecovery(final Logger logger, final String operation, final String fallbackMessage) {
         logger.warn("Attempting to recover from {} failure", operation);
         try {
             logger.info("Attempting fallback strategy: {}", fallbackMessage);
