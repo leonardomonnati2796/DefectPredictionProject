@@ -325,7 +325,7 @@ public class RefactoringImpactAnalyzer {
     private void analyzeReductionMetric(final double numerator, final int actualDefectsInA, final double predictedDefectsInB) {
         if (actualDefectsInA > 0) {
             final double reduction = numerator / actualDefectsInA;
-            logReductionMetric(reduction, actualDefectsInA, predictedDefectsInB);
+            logReductionMetric(reduction);
             validateReductionMetric(reduction, predictedDefectsInB, actualDefectsInA);
         } else {
             log.warn("Cannot calculate 'reduction' metric because there are no actual defects in the full dataset (division by zero).");
@@ -335,7 +335,7 @@ public class RefactoringImpactAnalyzer {
     /**
      * Logs the reduction metric calculation and result.
      */
-    private void logReductionMetric(final double reduction, final int actualDefectsInA, final double predictedDefectsInB) {
+    private void logReductionMetric(final double reduction) {
         if (log.isInfoEnabled()) {
             final double reductionPct = reduction * 100.0;
             // Note: numerator is actualDefectsInBplus - predictedDefectsInB
