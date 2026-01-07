@@ -46,7 +46,7 @@ public final class CsvHeadersUtils {
     public static final String[] LEGACY_METHOD_DATASET_HEADERS = {
         PROJECT_HEADER, 
         "MethodName", 
-        "Release", 
+        RELEASE_HEADER, 
         "CodeSmells", 
         "CyclomaticComplexity", 
         "ParameterCount",
