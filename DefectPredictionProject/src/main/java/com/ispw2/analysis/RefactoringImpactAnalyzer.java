@@ -17,6 +17,8 @@ public class RefactoringImpactAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(RefactoringImpactAnalyzer.class);
     private static final String FEATURE_PREFIX = "feature '";
     private static final String CLASSIFIER_TRAINING_CONTEXT = "Classifier training";
+    private static final String SIMULATION_CONTEXT = "simulation";
+    private static final String DATASET_CREATION_CONTEXT = "Dataset creation";
     
     private final String processedArffPath;
     private Instances datasetA;
@@ -86,11 +88,11 @@ public class RefactoringImpactAnalyzer {
         } catch (final ClassifierTrainingException e) {
             ExceptionUtils.handleGenericException(log, CLASSIFIER_TRAINING_CONTEXT, e, FEATURE_PREFIX + this.aFeatureName + "'");
             ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, e, "Using simplified classifier for limited analysis");
-            ExceptionUtils.logCannotProceed(log, "simulation", "without working classifier");
+            ExceptionUtils.logCannotProceed(log, SIMULATION_CONTEXT, "without working classifier");
             throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Classifier training failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final DatasetCreationException e) {
-            ExceptionUtils.handleGenericException(log, "Dataset creation", e, FEATURE_PREFIX + this.aFeatureName + "'");
-            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Creating fallback dataset for limited analysis");
+            ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + this.aFeatureName + "'");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Creating fallback dataset for limited analysis");
             throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Dataset creation failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final Exception e) {
             ExceptionUtils.handleGenericException(log, "Simulation", e, FEATURE_PREFIX + this.aFeatureName + "'");
@@ -142,7 +144,7 @@ public class RefactoringImpactAnalyzer {
     private void handleTrainingError(final Exception e) {
         ExceptionUtils.handleGenericException(log, CLASSIFIER_TRAINING_CONTEXT, e);
         tryAlternativeTraining();
-        ExceptionUtils.logCannotProceed(log, "simulation", "without trained classifier");
+        ExceptionUtils.logCannotProceed(log, SIMULATION_CONTEXT, "without trained classifier");
     }
     
     /**
@@ -173,14 +175,14 @@ public class RefactoringImpactAnalyzer {
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
-            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + featureNameToModify + "'");
-            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Creating simplified dataset B for feature '" + featureNameToModify + "'");
-            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for feature '" + featureNameToModify, e), e);
+            ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + featureNameToModify + "'");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Creating simplified dataset B for " + FEATURE_PREFIX + featureNameToModify + "'");
+            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for " + FEATURE_PREFIX + featureNameToModify + "'", e), e);
         } catch (final Exception e) {
-            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + featureNameToModify + "'");
-            ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Using fallback dataset creation approach");
-            ExceptionUtils.logCannotProceed(log, "simulation", "due to dataset creation error");
-            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for feature '" + featureNameToModify, e), e);
+            ExceptionUtils.handleGenericException(log, DATASET_CREATION_CONTEXT, e, FEATURE_PREFIX + featureNameToModify + "'");
+            ExceptionUtils.attemptRecovery(log, DATASET_CREATION_CONTEXT, e, "Using fallback dataset creation approach");
+            ExceptionUtils.logCannotProceed(log, SIMULATION_CONTEXT, "due to dataset creation error");
+            throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for " + FEATURE_PREFIX + featureNameToModify + "'", e), e);
         }
     }
 
