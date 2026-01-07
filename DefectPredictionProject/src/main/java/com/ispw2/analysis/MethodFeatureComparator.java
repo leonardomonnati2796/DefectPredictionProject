@@ -36,107 +36,206 @@ public class MethodFeatureComparator {
             final Map<String, Double> originalFeatures = parseMethodFeatures(originalMethodPath);
             final Map<String, Double> refactoredFeatures = parseMethodFeatures(refactoredMethodPath);
 
-            log.info("Feature comparison results (only actionable features):");
-            log.info(TABLE_HEADER);
-            log.info(String.join("", java.util.Collections.nCopies(74, "-")));
-
-            // Define actionable features (could be externalized if needed)
-            final java.util.List<String> actionable = java.util.Arrays.asList("CyclomaticComplexity");
-
-            // Prepare CSV output
-            final java.util.List<String> csvLines = new java.util.ArrayList<>();
-            csvLines.add("Feature,Original,Refactored,Improvement");
-
-            for (final String feature : actionable) {
-                final Double originalValue = originalFeatures.get(feature);
-                final Double refactoredValue = refactoredFeatures.get(feature);
-
-                final String originalStr = formatValue(originalValue);
-                final String refactoredStr = formatValue(refactoredValue);
-
-                String improvementStr;
-                if (originalValue != null && refactoredValue != null) {
-                    final double improvement = originalValue - refactoredValue;
-                    improvementStr = String.format(java.util.Locale.US, "%.2f", improvement);
-                } else {
-                    improvementStr = "n/a";
-                }
-
-                log.info(String.format(TABLE_ROW_FORMAT, feature, parseOrZero(originalStr), parseOrZero(refactoredStr), parseOrZero(improvementStr))
-                        .replace("NaN", "   n/a"));
-
-                // CSV line preserves n/a when values are missing
-                csvLines.add(String.format("%s,%s,%s,%s", feature, originalStr, refactoredStr, improvementStr));
-            }
-
-            // Write CSV to datasets folder if possible
-            try {
-                final java.nio.file.Path outDir = java.nio.file.Paths.get("datasets");
-                if (!java.nio.file.Files.exists(outDir)) {
-                    java.nio.file.Files.createDirectories(outDir);
-                }
-                final java.nio.file.Path outFile = outDir.resolve("method_feature_comparison.csv");
-                final java.nio.file.Path tmpFile = outDir.resolve("method_feature_comparison.csv.tmp");
-
-                // Retry a few times in case file is temporarily locked by another process
-                final int maxAttempts = 3;
-                int attempt = 0;
-                boolean written = false;
-                while (attempt < maxAttempts && !written) {
-                    attempt++;
-                    try {
-                        java.nio.file.Files.write(tmpFile, csvLines, java.nio.charset.StandardCharsets.UTF_8,
-                                java.nio.file.StandardOpenOption.CREATE,
-                                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
-                        try {
-                            java.nio.file.Files.move(tmpFile, outFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        } catch (java.nio.file.AtomicMoveNotSupportedException amnse) {
-                            // fallback to non-atomic move
-                            java.nio.file.Files.move(tmpFile, outFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        }
-                        written = true;
-                        log.info("Feature comparison CSV written to: {}", outFile.toString());
-                    } catch (final IOException ioe) {
-                        if (attempt >= maxAttempts) {
-                            log.warn("Could not write feature comparison CSV after {} attempts: {}", attempt, ioe.getMessage());
-                            log.debug("Stacktrace:", ioe);
-                            // Try fallback: write to unique timestamped file to avoid locked target
-                            try {
-                                final String ts = String.valueOf(System.currentTimeMillis());
-                                final java.nio.file.Path altFile = outDir.resolve("method_feature_comparison_" + ts + ".csv");
-                                java.nio.file.Files.write(altFile, csvLines, java.nio.charset.StandardCharsets.UTF_8,
-                                        java.nio.file.StandardOpenOption.CREATE_NEW);
-                                log.info("Feature comparison CSV written to fallback file: {}", altFile.toString());
-                                written = true;
-                            } catch (final IOException altEx) {
-                                log.warn("Fallback write also failed: {}", altEx.getMessage());
-                                log.debug("Fallback stacktrace:", altEx);
-                            }
-                        } else {
-                            try {
-                                Thread.sleep(200);
-                            } catch (final InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                        }
-                    }
-                }
-                // cleanup tmp file if it still exists
-                try {
-                    if (java.nio.file.Files.exists(tmpFile)) {
-                        java.nio.file.Files.deleteIfExists(tmpFile);
-                    }
-                } catch (final IOException ignore) {
-                    // ignore cleanup failures
-                }
-            } catch (final Exception e) {
-                log.warn("Could not write feature comparison CSV: {}", e.getMessage());
-                log.debug("Stacktrace:", e);
-            }
+            final java.util.List<String> csvLines = createComparisonData(originalFeatures, refactoredFeatures);
+            writeCsvWithRetry(csvLines);
 
         } catch (final IOException e) {
             log.error("Error comparing methods", e);
+        }
+    }
+
+    /**
+     * Creates comparison data for features, logging results and building CSV lines.
+     *
+     * @param originalFeatures Features from the original method
+     * @param refactoredFeatures Features from the refactored method
+     * @return List of CSV lines including header
+     */
+    private java.util.List<String> createComparisonData(final Map<String, Double> originalFeatures, 
+                                                         final Map<String, Double> refactoredFeatures) {
+        log.info("Feature comparison results (only actionable features):");
+        log.info(TABLE_HEADER);
+        log.info(String.join("", java.util.Collections.nCopies(74, "-")));
+
+        final java.util.List<String> actionable = java.util.Arrays.asList("CyclomaticComplexity");
+        final java.util.List<String> csvLines = new java.util.ArrayList<>();
+        csvLines.add("Feature,Original,Refactored,Improvement");
+
+        for (final String feature : actionable) {
+            final Double originalValue = originalFeatures.get(feature);
+            final Double refactoredValue = refactoredFeatures.get(feature);
+
+            final String originalStr = formatValue(originalValue);
+            final String refactoredStr = formatValue(refactoredValue);
+            final String improvementStr = calculateImprovement(originalValue, refactoredValue);
+
+            log.info(String.format(TABLE_ROW_FORMAT, feature, parseOrZero(originalStr), 
+                    parseOrZero(refactoredStr), parseOrZero(improvementStr)).replace("NaN", "   n/a"));
+
+            csvLines.add(String.format("%s,%s,%s,%s", feature, originalStr, refactoredStr, improvementStr));
+        }
+
+        return csvLines;
+    }
+
+    /**
+     * Calculates the improvement value between original and refactored features.
+     *
+     * @param originalValue Original feature value
+     * @param refactoredValue Refactored feature value
+     * @return Formatted improvement string or "n/a" if values are null
+     */
+    private String calculateImprovement(final Double originalValue, final Double refactoredValue) {
+        if (originalValue != null && refactoredValue != null) {
+            final double improvement = originalValue - refactoredValue;
+            return String.format(java.util.Locale.US, "%.2f", improvement);
+        }
+        return "n/a";
+    }
+
+    /**
+     * Writes CSV data to file with retry logic and fallback mechanisms.
+     *
+     * @param csvLines List of CSV lines to write
+     */
+    private void writeCsvWithRetry(final java.util.List<String> csvLines) {
+        try {
+            final java.nio.file.Path outDir = java.nio.file.Paths.get("datasets");
+            if (!java.nio.file.Files.exists(outDir)) {
+                java.nio.file.Files.createDirectories(outDir);
+            }
+            final java.nio.file.Path outFile = outDir.resolve("method_feature_comparison.csv");
+            final java.nio.file.Path tmpFile = outDir.resolve("method_feature_comparison.csv.tmp");
+
+            attemptWriteWithRetry(csvLines, outFile, tmpFile, outDir);
+            cleanupTempFile(tmpFile);
+
+        } catch (final Exception e) {
+            log.warn("Could not write feature comparison CSV: {}", e.getMessage());
+            log.debug("Stacktrace:", e);
+        }
+    }
+
+    /**
+     * Attempts to write CSV file with multiple retries.
+     *
+     * @param csvLines CSV data to write
+     * @param outFile Target output file
+     * @param tmpFile Temporary file for atomic write
+     * @param outDir Output directory for fallback
+     */
+    private void attemptWriteWithRetry(final java.util.List<String> csvLines, 
+                                       final java.nio.file.Path outFile,
+                                       final java.nio.file.Path tmpFile,
+                                       final java.nio.file.Path outDir) {
+        final int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            if (tryWriteFile(csvLines, outFile, tmpFile, attempt, maxAttempts, outDir)) {
+                return;
+            }
+            if (attempt < maxAttempts) {
+                sleepBetweenAttempts();
+            }
+        }
+    }
+
+    /**
+     * Tries to write the CSV file, returns true if successful.
+     *
+     * @param csvLines CSV data to write
+     * @param outFile Target output file
+     * @param tmpFile Temporary file for atomic write
+     * @param attempt Current attempt number
+     * @param maxAttempts Maximum number of attempts
+     * @param outDir Output directory for fallback
+     * @return true if write was successful, false otherwise
+     */
+    private boolean tryWriteFile(final java.util.List<String> csvLines,
+                                 final java.nio.file.Path outFile,
+                                 final java.nio.file.Path tmpFile,
+                                 final int attempt,
+                                 final int maxAttempts,
+                                 final java.nio.file.Path outDir) {
+        try {
+            java.nio.file.Files.write(tmpFile, csvLines, java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+            moveFileWithFallback(tmpFile, outFile);
+            log.info("Feature comparison CSV written to: {}", outFile.toString());
+            return true;
+        } catch (final IOException ioe) {
+            if (attempt >= maxAttempts) {
+                handleWriteFailure(csvLines, outDir, attempt, ioe);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Moves file with fallback to non-atomic move if atomic is not supported.
+     *
+     * @param source Source file
+     * @param target Target file
+     * @throws IOException If move fails
+     */
+    private void moveFileWithFallback(final java.nio.file.Path source, final java.nio.file.Path target) throws IOException {
+        try {
+            java.nio.file.Files.move(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException amnse) {
+            java.nio.file.Files.move(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /**
+     * Handles write failure by attempting to write to a timestamped fallback file.
+     *
+     * @param csvLines CSV data to write
+     * @param outDir Output directory
+     * @param attempt Number of failed attempts
+     * @param ioe Original IOException
+     */
+    private void handleWriteFailure(final java.util.List<String> csvLines,
+                                    final java.nio.file.Path outDir,
+                                    final int attempt,
+                                    final IOException ioe) {
+        log.warn("Could not write feature comparison CSV after {} attempts: {}", attempt, ioe.getMessage());
+        log.debug("Stacktrace:", ioe);
+        try {
+            final String ts = String.valueOf(System.currentTimeMillis());
+            final java.nio.file.Path altFile = outDir.resolve("method_feature_comparison_" + ts + ".csv");
+            java.nio.file.Files.write(altFile, csvLines, java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE_NEW);
+            log.info("Feature comparison CSV written to fallback file: {}", altFile.toString());
+        } catch (final IOException altEx) {
+            log.warn("Fallback write also failed: {}", altEx.getMessage());
+            log.debug("Fallback stacktrace:", altEx);
+        }
+    }
+
+    /**
+     * Sleeps between write attempts.
+     */
+    private void sleepBetweenAttempts() {
+        try {
+            Thread.sleep(200);
+        } catch (final InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Cleans up temporary file if it exists.
+     *
+     * @param tmpFile Temporary file to clean up
+     */
+    private void cleanupTempFile(final java.nio.file.Path tmpFile) {
+        try {
+            if (java.nio.file.Files.exists(tmpFile)) {
+                java.nio.file.Files.deleteIfExists(tmpFile);
+            }
+        } catch (final IOException ignore) {
+            // ignore cleanup failures
         }
     }
 
