@@ -34,9 +34,11 @@ public class FeatureImportanceChecker {
         }
 
         scores.sort(Comparator.comparingDouble((AttrScore s) -> s.score).reversed());
-        log.info("Attribute InfoGain ranking (desc):");
-        for (final AttrScore s : scores) {
-            log.info("{} : {}", s.name, String.format(java.util.Locale.US, "%.6f", s.score));
+        if (log.isInfoEnabled()) {
+            log.info("Attribute InfoGain ranking (desc):");
+            for (final AttrScore s : scores) {
+                log.info("{} : {}", s.name, String.format(java.util.Locale.US, "%.6f", s.score));
+            }
         }
     }
 
