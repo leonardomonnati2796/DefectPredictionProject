@@ -402,11 +402,93 @@ public class DefectPredictionPipeline {
                 return;
             }
 
+            // Ensure refactored method file exists and matches the original signature before spending time on simulations
+            final String[] methodPaths = buildMethodPaths(context);
+            if (!isRefactoredMethodReady(methodPaths[0], methodPaths[1])) {
+                log.warn("Refactored method file is missing/empty or does not match the original method signature: {}. Aborting further analysis to avoid unnecessary computation.", methodPaths[1]);
+                return;
+            }
+
             runSimulationAndComparison(context, bestModel, aFeature);
 
         } catch (final Exception e) {
             log.error("An error occurred during analysis and simulation for project {}", context.projectName(), e);
         }
+    }
+
+    /**
+     * Checks whether the refactored method file exists and contains content.
+     *
+     * @param refactoredMethodPath the path to the refactored method file
+     * @return true if file exists and is non-empty, false otherwise
+     */
+    private static boolean isRefactoredMethodReady(final String originalMethodPath, final String refactoredMethodPath) {
+        try {
+            final java.nio.file.Path p = java.nio.file.Paths.get(refactoredMethodPath);
+            if (!java.nio.file.Files.exists(p)) return false;
+            try {
+                // consider non-empty if there is at least one non-whitespace character
+                final String refContent = java.nio.file.Files.readString(p);
+                if (refContent == null || refContent.trim().isEmpty()) return false;
+                // Validate signature compatibility with the original AFMethod
+                final java.nio.file.Path po = java.nio.file.Paths.get(originalMethodPath);
+                if (!java.nio.file.Files.exists(po)) return false;
+                final String origContent = java.nio.file.Files.readString(po);
+                final Signature sig = extractSignature(origContent);
+                if (sig == null) return false;
+                final int refParamCount = findMethodParamCount(refContent, sig.methodName);
+                return refParamCount >= 0 && refParamCount == sig.paramCount;
+            } catch (final Exception ex) {
+                // fallback to size check if reading fails
+                return java.nio.file.Files.size(p) > 0;
+            }
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
+    private static class Signature {
+        final String methodName;
+        final int paramCount;
+        Signature(final String name, final int count) { this.methodName = name; this.paramCount = count; }
+    }
+
+    /**
+     * Extracts a simple signature (method name + parameter count) from the original method source.
+     */
+    private static Signature extractSignature(final String source) {
+        if (source == null) return null;
+        final int parenIdx = source.indexOf('(');
+        if (parenIdx <= 0) return null;
+        // Walk backwards to find method name start
+        int i = parenIdx - 1;
+        while (i >= 0 && Character.isWhitespace(source.charAt(i))) i--;
+        int end = i;
+        while (i >= 0 && (Character.isJavaIdentifierPart(source.charAt(i)))) i--;
+        int start = i + 1;
+        if (start > end || start < 0) return null;
+        final String methodName = source.substring(start, end + 1);
+        // Parameter list
+        final int closeIdx = source.indexOf(')', parenIdx + 1);
+        if (closeIdx < 0) return null;
+        final String params = source.substring(parenIdx + 1, closeIdx).trim();
+        final int paramCount = params.isEmpty() ? 0 : (int) params.chars().filter(ch -> ch == ',').count() + 1;
+        return new Signature(methodName, paramCount);
+    }
+
+    /**
+     * Finds the first occurrence of the method in the refactored content and returns its parameter count; -1 if not found.
+     */
+    private static int findMethodParamCount(final String content, final String methodName) {
+        if (content == null || methodName == null || methodName.isEmpty()) return -1;
+        final String needle = methodName + "(";
+        final int idx = content.indexOf(needle);
+        if (idx < 0) return -1;
+        final int openIdx = idx + methodName.length();
+        final int closeIdx = content.indexOf(')', openIdx);
+        if (closeIdx < 0) return -1;
+        final String params = content.substring(openIdx + 1, closeIdx).trim();
+        return params.isEmpty() ? 0 : (int) params.chars().filter(ch -> ch == ',').count() + 1;
     }
     
     /**

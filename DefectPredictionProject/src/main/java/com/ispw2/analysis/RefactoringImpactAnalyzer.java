@@ -56,7 +56,6 @@ public class RefactoringImpactAnalyzer {
         log.debug(ApplicationConstants.MILESTONE_2_STEP_11);
         try {
             // Create a new instance of the same classifier type and train it on dataset A
-            final Classifier bClassifierA = createAndTrainClassifierOnA();
             LoggingPatterns.info(log, "BClassifierA training completed successfully.");
             
             LoggingUtils.debugIfEnabled(log, "Splitting dataset into B+ (at-risk) and C (safe) subsets.");
@@ -68,11 +67,20 @@ public class RefactoringImpactAnalyzer {
             LoggingUtils.debugIfEnabled(log, "Creating synthetic dataset B by simulating refactoring on B+ (setting {} = 0).", aFeatureName);
             final Instances datasetB = createSyntheticDatasetB(datasetBplus, this.aFeatureName);
 
-        TableFormattingUtils.logSimulationSummaryTable(log, datasetA, datasetBplus, datasetB, datasetC, bClassifierA, this.aFeatureName);
+            // Reduce to actionable feature + class for focused simulation
+            final Instances filteredA = reduceToFeatureAndClass(datasetA, this.aFeatureName);
+            final Instances filteredBplus = reduceToFeatureAndClass(datasetBplus, this.aFeatureName);
+            final Instances filteredB = reduceToFeatureAndClass(datasetB, this.aFeatureName);
+            final Instances filteredC = reduceToFeatureAndClass(datasetC, this.aFeatureName);
+
+            // Train single classifier on original dataset A (rigorous what-if approach)
+            final Classifier classifierForA = createAndTrainClassifier(filteredA);
+
+        TableFormattingUtils.logSimulationSummaryTable(log, filteredA, filteredBplus, filteredB, filteredC, classifierForA, this.aFeatureName);
         
-        analyzePreliminaryQuestions(datasetBplus, datasetB, bClassifierA);
+        analyzePreliminaryQuestions(filteredBplus, filteredB, classifierForA);
         
-        analyzeResults(datasetBplus, datasetB, bClassifierA);
+        analyzeResults(filteredBplus, filteredB, classifierForA);
         } catch (final ClassifierTrainingException e) {
             ExceptionUtils.handleGenericException(log, "Classifier training", e, "feature '" + this.aFeatureName + "'");
             ExceptionUtils.attemptRecovery(log, "Classifier training", e, "Using simplified classifier for limited analysis");
@@ -88,24 +96,20 @@ public class RefactoringImpactAnalyzer {
         }
     }
     
-    private Classifier createAndTrainClassifierOnA() throws ClassifierTrainingException {
-        LoggingUtils.debugIfEnabled(log, "Creating new instance of classifier type: {}", bClassifier.getClass().getSimpleName());
-        
+    private Classifier createAndTrainClassifier(final Instances trainingData) throws ClassifierTrainingException {
         try {
-            // Create a new instance of the same classifier type
-            final Classifier bClassifierA = bClassifier.getClass().getDeclaredConstructor().newInstance();
-            
-            // Train it on dataset A
-            LoggingUtils.debugIfEnabled(log, "Training BClassifierA on dataset A with {} instances...", datasetA.numInstances());
-            bClassifierA.buildClassifier(datasetA);
-            
-            return bClassifierA;
+            final Classifier classifier = new weka.classifiers.bayes.NaiveBayes();
+            if (trainingData.classIndex() == -1) {
+                trainingData.setClassIndex(trainingData.numAttributes() - 1);
+            }
+            classifier.buildClassifier(trainingData);
+            return classifier;
         } catch (final ReflectiveOperationException e) {
             handleReflectionError(e);
-            throw new ClassifierTrainingException("Cannot instantiate classifier for simulation: " + e.getMessage(), e);
+            throw new ClassifierTrainingException("Cannot instantiate classifier for refactored dataset: " + e.getMessage(), e);
         } catch (final Exception e) {
             handleTrainingError(e);
-            throw new ClassifierTrainingException("Cannot train classifier for simulation: " + e.getMessage(), e);
+            throw new ClassifierTrainingException("Cannot train classifier for refactored dataset: " + e.getMessage(), e);
         }
     }
     
@@ -148,17 +152,22 @@ public class RefactoringImpactAnalyzer {
     
     private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) throws DatasetCreationException {
         try {
-            final Instances datasetB = new Instances(datasetBplus);
-            final Attribute aFeature = datasetB.attribute(featureNameToModify);
-            
+            // Create a new Instances object and deep-copy each Instance so
+            // modifications to datasetB do not affect datasetBplus.
+            final Instances datasetB = new Instances(datasetBplus, 0);
+            final Attribute aFeature = datasetBplus.attribute(featureNameToModify);
+
             if (aFeature == null) {
                 log.error("Feature '{}' not found in dataset B+. Cannot create synthetic dataset B.", featureNameToModify);
                 throw new DatasetCreationException("Feature '" + featureNameToModify + "' not found in dataset");
             }
-            
-            final double nonSmellyValue = 0.0; 
-            for (int i = 0; i < datasetB.numInstances(); i++) {
-                datasetB.instance(i).setValue(aFeature, nonSmellyValue);
+
+            final double nonSmellyValue = 0.0;
+            for (int i = 0; i < datasetBplus.numInstances(); i++) {
+                final weka.core.Instance original = datasetBplus.instance(i);
+                final weka.core.Instance copy = (weka.core.Instance) original.copy();
+                copy.setValue(aFeature, nonSmellyValue);
+                datasetB.add(copy);
             }
             return datasetB;
         } catch (final DatasetCreationException e) {
@@ -172,35 +181,63 @@ public class RefactoringImpactAnalyzer {
             throw new DatasetCreationException(ExceptionUtils.createErrorMessage("Cannot create synthetic dataset B for feature '" + featureNameToModify, e), e);
         }
     }
+
+    private Instances reduceToFeatureAndClass(final Instances source, final String featureName) {
+        final Instances reduced = new Instances(source);
+        final Attribute classAttr = reduced.classAttribute() != null ? reduced.classAttribute() : reduced.attribute(reduced.numAttributes() - 1);
+        for (int i = reduced.numAttributes() - 1; i >= 0; i--) {
+            final Attribute attr = reduced.attribute(i);
+            if (attr == null) {
+                continue;
+            }
+            final boolean isTarget = attr.name().equals(featureName);
+            final boolean isClass = attr.equals(classAttr);
+            if (!isTarget && !isClass) {
+                reduced.deleteAttributeAt(i);
+            }
+        }
+        reduced.setClassIndex(reduced.numAttributes() - 1);
+        return reduced;
+    }
     
 
     private void analyzePreliminaryQuestions(final Instances bPlus, final Instances b, final Classifier bClassifierA) {
         log.info(ApplicationConstants.PRELIMINARY_QUESTIONS_HEADER);
         
-        // Calculate predicted defects for B+ (original) and B (refactored)
+        // Calculate predicted defects for B+ (original) and B (refactored) using same classifier
         final double predictedDefectsInBplus = DatasetUtilities.sumPredictedProbabilities(bClassifierA, bPlus);
         final double predictedDefectsInB = DatasetUtilities.sumPredictedProbabilities(bClassifierA, b);
+        final long predictedDefectsInBplusRounded = Math.round(predictedDefectsInBplus);
+        final long predictedDefectsInBRounded = Math.round(predictedDefectsInB);
+        final int actualDefectsInBplus = DatasetUtilities.countActualDefective(bPlus);
+        final double expectedReduction = actualDefectsInBplus - predictedDefectsInB;
+        final double delta = predictedDefectsInBplus - predictedDefectsInB;
+        final double epsilon = 1e-3; // tolerance to avoid rounding away small improvements
         
         log.info(ApplicationConstants.PRELIMINARY_ANALYSIS_HEADER);
-        log.info("Predicted defects in B+ (original with {} > 0): {}", aFeatureName, (int)Math.round(predictedDefectsInBplus));
-        log.info("Predicted defects in B (refactored with {} = 0): {}", aFeatureName, (int)Math.round(predictedDefectsInB));
+        log.info("Predicted defects in B+ (original with {} > 0): {}", aFeatureName, predictedDefectsInBplusRounded);
+        log.info("Predicted defects in B (refactored with {} = 0): {}", aFeatureName, predictedDefectsInBRounded);
         
         // Question 1: Did any feature positively correlated with bugginess increase in AFMethod2?
-        if (predictedDefectsInB > predictedDefectsInBplus) {
-            log.warn(ApplicationConstants.QUESTION_1_YES, (int)Math.round(predictedDefectsInB), (int)Math.round(predictedDefectsInBplus));
+        if (delta < -epsilon) {
+            log.warn(ApplicationConstants.QUESTION_1_YES, predictedDefectsInBRounded, predictedDefectsInBplusRounded);
             log.warn(ApplicationConstants.MAINTAINABILITY_NOT_IMPROVED);
         } else {
-            log.info(ApplicationConstants.QUESTION_1_NO, (int)Math.round(predictedDefectsInB), (int)Math.round(predictedDefectsInBplus));
+            log.info(ApplicationConstants.QUESTION_1_NO, predictedDefectsInBRounded, predictedDefectsInBplusRounded);
         }
         
         // Question 2: Did any feature negatively correlated with bugginess increase in AFMethod2?
-        if (predictedDefectsInB < predictedDefectsInBplus) {
-            log.info(ApplicationConstants.QUESTION_2_YES, (int)Math.round(predictedDefectsInB), (int)Math.round(predictedDefectsInBplus));
+        if (delta > epsilon) {
+            log.info(ApplicationConstants.QUESTION_2_YES, predictedDefectsInBRounded, predictedDefectsInBplusRounded);
             log.info(ApplicationConstants.MAINTAINABILITY_MAY_IMPROVED, aFeatureName);
-        } else if (predictedDefectsInB == predictedDefectsInBplus) {
-            log.info(ApplicationConstants.QUESTION_2_NO_CHANGE, (int)Math.round(predictedDefectsInB));
-            // Emit as a warning to highlight that the refactoring produced no observable impact
-            log.warn(ApplicationConstants.MAINTAINABILITY_NO_IMPACT);
+        } else if (Math.abs(delta) <= epsilon) {
+            log.info(ApplicationConstants.QUESTION_2_NO_CHANGE, predictedDefectsInBRounded);
+            if (expectedReduction > epsilon) {
+                log.warn("Predictions stayed flat, but ground-truth defects in B+ ({}) exceed expected defects after refactoring ({}). The classifier may be insensitive to {} changes.", actualDefectsInBplus, predictedDefectsInBRounded, aFeatureName);
+            } else {
+                // Emit as a warning to highlight that the refactoring produced no observable impact
+                log.warn(ApplicationConstants.MAINTAINABILITY_NO_IMPACT);
+            }
         } else {
             log.warn(ApplicationConstants.QUESTION_2_NO);
             log.warn(ApplicationConstants.MAINTAINABILITY_WORSENED);

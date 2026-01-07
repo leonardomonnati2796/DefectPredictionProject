@@ -1,0 +1,84 @@
+/**
+ * Return true if this column is compatible with the given JDBC type
+ * from {@link Types} and size.
+ */
+public boolean isCompatible(int type, String typeName, int size, int decimals) {
+    if (type == Types.OTHER || getType() == Types.OTHER)
+        return true;
+    // note that the given size is currently ignored, but may be useful
+    // to dynamically-populating subclasses
+    switch(getType()) {
+        case Types.BIT:
+        case Types.TINYINT:
+        case Types.BIGINT:
+        case Types.INTEGER:
+        case Types.NUMERIC:
+        case Types.SMALLINT:
+        case Types.DECIMAL:
+        case Types.DOUBLE:
+        case Types.FLOAT:
+        case Types.REAL:
+            switch(type) {
+                case Types.BIT:
+                case Types.TINYINT:
+                case Types.BIGINT:
+                case Types.INTEGER:
+                case Types.NUMERIC:
+                case Types.SMALLINT:
+                case Types.DECIMAL:
+                case Types.DOUBLE:
+                case Types.FLOAT:
+                case Types.REAL:
+                    return true;
+                default:
+                    return false;
+            }
+        case Types.BINARY:
+        case Types.BLOB:
+        case Types.LONGVARBINARY:
+        case Types.VARBINARY:
+        case Types.OTHER:
+            switch(type) {
+                case Types.BINARY:
+                case Types.BLOB:
+                case Types.LONGVARBINARY:
+                case Types.VARBINARY:
+                case Types.OTHER:
+                    return true;
+                default:
+                    return false;
+            }
+        case Types.CLOB:
+        case Types.CHAR:
+        case Types.LONGVARCHAR:
+        case Types.VARCHAR:
+            switch(type) {
+                case Types.CLOB:
+                case Types.CHAR:
+                case Types.LONGVARCHAR:
+                case Types.VARCHAR:
+                case Types.DATE:
+                case Types.TIME:
+                case Types.TIMESTAMP:
+                    return true;
+                default:
+                    return false;
+            }
+        case Types.DATE:
+        case Types.TIME:
+        case Types.TIMESTAMP:
+            switch(type) {
+                case Types.LONGVARCHAR:
+                case Types.CLOB:
+                case Types.VARCHAR:
+                case Types.DATE:
+                case Types.TIME:
+                case Types.TIMESTAMP:
+                    return true;
+                default:
+                    return false;
+            }
+        default:
+            return type == getType();
+    }
+}

@@ -22,7 +22,12 @@ Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFina
 [Milestone 2, Step 1] Found saved model. Loading from file: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_best.model
 Starting data analysis to find actionable method...
 [Milestone 2, Step 1] Finding Top Actionable Feature...
-Identified Top Actionable Feature (AFeature): CyclomaticComplexity
+Actionable features present in dataset: [CyclomaticComplexity]
+Searching for highest InfoGain feature among actionable ones...
+  Checking feature 'avgChurn' (InfoGain: 0.030066) - Actionable: false
+  Checking feature 'stmtAdded' (InfoGain: 0.029714) - Actionable: false
+  Checking feature 'CyclomaticComplexity' (InfoGain: 0.026222) - Actionable: true
+Identified Top Actionable Feature (AFeature): CyclomaticComplexity with InfoGain 0.026222
 [Milestone 2, Step 6] Identifying Target Method (AFMethod)...
   -> Searching within the last analyzed release: 4.2.1
   -> Found 216 buggy methods in this release.
@@ -35,34 +40,34 @@ File Refactoring file already exists at: C:\Users\hp\Desktop\DefectPredictionPro
 Data analysis completed.
 [Milestone 2, Step 10] Starting What-If Simulation using AFeature: CyclomaticComplexity
 BClassifierA training completed successfully.
-------------------------------------------------------------------
-| Dataset              | Total Instances | Predicted Defects |
-------------------------------------------------------------------
-| A (Full Dataset)     | 17255           | 828             |
-| B+ (CyclomaticComplexity > 0) | 5967            | 286             |
-| B (B+ with CyclomaticComplexity=0) | 5967            | 286             |
-| C (CyclomaticComplexity <= 0) | 11288           | 542             |
-------------------------------------------------------------------
+----------------------------------------------------------------------------------
+| Dataset                                  | Total Instances | Predicted Defects |
+----------------------------------------------------------------------------------
+| A (Full Dataset)                         |           17255 |               931 |
+| B+ (CyclomaticComplexity > 0)            |            5967 |               694 |
+| B (B+ with CyclomaticComplexity=0)       |            5967 |               125 |
+| C (CyclomaticComplexity <= 0)            |           11288 |               237 |
+----------------------------------------------------------------------------------
 [PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...
 --- PRELIMINARY ANALYSIS ---
-Predicted defects in B+ (original with CyclomaticComplexity > 0): 286
-Predicted defects in B (refactored with CyclomaticComplexity = 0): 286
-QUESTION 1: NO - Predicted defects did not increase in AFMethod2 (286 vs 286).
-QUESTION 2: NO CHANGE - Predicted defects remained the same in AFMethod2 (286).
-This suggests the refactoring had no impact on predicted defect probability.
+Predicted defects in B+ (original with CyclomaticComplexity > 0): 694
+Predicted defects in B (refactored with CyclomaticComplexity = 0): 125
+QUESTION 1: NO - Predicted defects did not increase in AFMethod2 (125 vs 694).
+QUESTION 2: YES - Predicted defects DECREASED in AFMethod2 (125 vs 694).
+This suggests we MAY have improved maintainability by reducing CyclomaticComplexity from >0 to 0.
 --- END PRELIMINARY ANALYSIS ---
 [Milestone 2, Step 13] Calculating final metrics based on custom formulas...
-Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (568 - 286) / 568 = 0,496 (49.60%)
-ANSWER 1 (drop): The calculated metric value is 0,496 (49.60%).
-Formula 2 (reduction) = (actual B+ - expected B) / actual A = (568 - 286) / 827 = 0,341 (34.06%)
-ANSWER 2 (reduction): The calculated metric value is 0,341 (34.06%).
+Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (568 - 125) / 568 = 0,780 (77.98%)
+ANSWER 1 (drop): The calculated metric value is 0,780 (77.98%).
+Formula 2 (reduction) = (actual B+ - expected B) / actual A = (568 - 125) / 827 = 0,536 (53.56%)
+ANSWER 2 (reduction): The calculated metric value is 0,536 (53.56%).
 Comparing methods:
   Original: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\BOOKKEEPER_AFMethod.txt
   Refactored: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\BOOKKEEPER_AFMethod_refactored.txt
-Feature comparison results:
+Feature comparison results (only actionable features):
 Feature                        |     Original |   Refactored |  Improvement
 --------------------------------------------------------------------------
-Could not write feature comparison CSV: datasets\method_feature_comparison.csv: Impossibile accedere al file. Il file è utilizzato da un altro processo.
-
+CyclomaticComplexity           |        30,00 |         9,00 |        21,00
+Feature comparison CSV written to: datasets\method_feature_comparison.csv
 --- FINISHED PIPELINE FOR: BOOKKEEPER ---
 Pipeline finished.

@@ -55,8 +55,54 @@ Dataset already exists. Skipping generation.
 Preprocessing data for analysis...
 Processed ARFF file already exists. Skipping preprocessing.
 Checking for model file at path: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_best.model
-[Milestone 2, Step 2] No saved model found. Starting evaluation and tuning process...
---- Evaluating base classifiers on the original (imbalanced) dataset ---
-----------------------------------------------------------------------
-Classifier           | AUC        | Precision  | Recall     | Kappa     
-----------------------------------------------------------------------
+[Milestone 2, Step 1] Found saved model. Loading from file: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_best.model
+Starting data analysis to find actionable method...
+[Milestone 2, Step 1] Finding Top Actionable Feature...
+Actionable features present in dataset: [CyclomaticComplexity]
+Searching for highest InfoGain feature among actionable ones...
+  Checking feature 'maxChurn' (InfoGain: 0.007710) - Actionable: false
+  Checking feature 'CyclomaticComplexity' (InfoGain: 0.006621) - Actionable: true
+Identified Top Actionable Feature (AFeature): CyclomaticComplexity with InfoGain 0.006621
+[Milestone 2, Step 6] Identifying Target Method (AFMethod)...
+  -> Searching within the last analyzed release: 1.2.2
+  -> Found 134 buggy methods in this release.
+Identified AFMethod (buggy method with highest CyclomaticComplexity):
+  -> MethodName: openjpa-jdbc/src/main/java/org/apache/openjpa/jdbc/schema/Column.java/isCompatible(int, String, int, int)
+  -> CyclomaticComplexity Value: 57
+[Milestone 2, Step 7] Saving AFMethod source code...
+File Source code of AFMethod saved to: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_AFMethod.txt
+File Refactoring file already exists at: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\OPENJPA_AFMethod_refactored.txt
+Data analysis completed.
+[Milestone 2, Step 10] Starting What-If Simulation using AFeature: CyclomaticComplexity
+BClassifierA training completed successfully.
+----------------------------------------------------------------------------------
+| Dataset                                  | Total Instances | Predicted Defects |
+----------------------------------------------------------------------------------
+| A (Full Dataset)                         |          162679 |              2958 |
+| B+ (CyclomaticComplexity > 0)            |           52125 |              2583 |
+| B (B+ with CyclomaticComplexity=0)       |           52125 |               177 |
+| C (CyclomaticComplexity <= 0)            |          110554 |               375 |
+----------------------------------------------------------------------------------
+[PRELIMINARY QUESTIONS] Analyzing feature changes in AFMethod2 vs AFMethod...
+--- PRELIMINARY ANALYSIS ---
+Predicted defects in B+ (original with CyclomaticComplexity > 0): 2583
+Predicted defects in B (refactored with CyclomaticComplexity = 0): 177
+QUESTION 1: NO - Predicted defects did not increase in AFMethod2 (177 vs 2583).
+QUESTION 2: YES - Predicted defects DECREASED in AFMethod2 (177 vs 2583).
+This suggests we MAY have improved maintainability by reducing CyclomaticComplexity from >0 to 0.
+--- END PRELIMINARY ANALYSIS ---
+[Milestone 2, Step 13] Calculating final metrics based on custom formulas...
+Formula 1 (drop) = (actual B+ - expected B) / actual B+ = (1084 - 177) / 1084 = 0,837 (83.69%)
+ANSWER 1 (drop): The calculated metric value is 0,837 (83.69%).
+Formula 2 (reduction) = (actual B+ - expected B) / actual A = (1084 - 177) / 1571 = 0,577 (57.75%)
+ANSWER 2 (reduction): The calculated metric value is 0,577 (57.75%).
+Comparing methods:
+  Original: C:\Users\hp\Desktop\DefectPredictionProjectFinal\datasets\OPENJPA_AFMethod.txt
+  Refactored: C:\Users\hp\Desktop\DefectPredictionProjectFinal\AFMethod_refactored\OPENJPA_AFMethod_refactored.txt
+Feature comparison results (only actionable features):
+Feature                        |     Original |   Refactored |  Improvement
+--------------------------------------------------------------------------
+CyclomaticComplexity           |        54,00 |         9,00 |        45,00
+Feature comparison CSV written to: datasets\method_feature_comparison.csv
+--- FINISHED PIPELINE FOR: OPENJPA ---
+Pipeline finished.

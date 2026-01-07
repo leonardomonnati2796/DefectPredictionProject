@@ -17,14 +17,14 @@ public final class TableFormattingUtils {
 
     // Common table formatting constants
     private static final String DEFAULT_SEPARATOR = "----------------------------------------------------------------------";
-    private static final String COMPACT_SEPARATOR = "------------------------------------------------------------------";
+    private static final String COMPACT_SEPARATOR = "----------------------------------------------------------------------------------";
     
     // Table format strings
     private static final String CLASSIFIER_TABLE_HEADER_FORMAT = "%-20s | %-10s | %-10s | %-10s | %-10s";
     private static final String CLASSIFIER_TABLE_ROW_FORMAT = "%-20s | %-10.3f | %-10.3f | %-10.3f | %-10.3f";
     
-    private static final String SIMULATION_TABLE_HEADER_FORMAT = "| %-20s | %-15s | %-15s |";
-    private static final String SIMULATION_TABLE_ROW_FORMAT = "| %-20s | %-15d | %-15d |";
+    private static final String SIMULATION_TABLE_HEADER_FORMAT = "| %-40s | %15s | %17s |";
+    private static final String SIMULATION_TABLE_ROW_FORMAT = "| %-40s | %15d | %17d |";
 
     /**
      * Logs a classifier evaluation table with standardized formatting.
@@ -71,15 +71,15 @@ public final class TableFormattingUtils {
                                                 final Instances bPlus,
                                                 final Instances b,
                                                 final Instances c,
-                                                final Classifier bClassifierA,
+                                                final Classifier classifier,
                                                 final String aFeatureName) {
         if (!logger.isInfoEnabled()) return;
         
-        // Calculate defect counts
-        final long defectsInA = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, dataA));
-        final long defectsInBplus = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, bPlus));
-        final long defectsInB = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, b));
-        final long defectsInC = Math.round(DatasetUtilities.sumPredictedProbabilities(bClassifierA, c));
+        // Calculate defect counts (rounded to integer as requested)
+        final long defectsInA = Math.round(DatasetUtilities.sumPredictedProbabilities(classifier, dataA));
+        final long defectsInBplus = Math.round(DatasetUtilities.sumPredictedProbabilities(classifier, bPlus));
+        final long defectsInB = Math.round(DatasetUtilities.sumPredictedProbabilities(classifier, b));
+        final long defectsInC = Math.round(DatasetUtilities.sumPredictedProbabilities(classifier, c));
 
         logger.info(COMPACT_SEPARATOR);
         logger.info(String.format(SIMULATION_TABLE_HEADER_FORMAT, "Dataset", "Total Instances", "Predicted Defects"));
