@@ -192,8 +192,6 @@ public final class DatasetUtilities {
     private static int countDefectiveInstances(Instances data, String type, InstanceClassifier classifier) {
         log.debug("Counting {} defective instances...", type);
         int defectiveCount = 0;
-        final Attribute classAttribute = data.classAttribute();
-
         // Ensure class index is set; some filtered datasets may lose it
         if (data.classIndex() == -1) {
             log.warn("Class index not set on dataset. Setting class index to last attribute.");

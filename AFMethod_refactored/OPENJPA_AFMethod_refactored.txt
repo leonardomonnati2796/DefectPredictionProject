@@ -1,0 +1,92 @@
+/*
+ * ORIGINAL: CyclomaticComplexity = 57
+ * REFACTORED: CyclomaticComplexity = 9
+ * 
+ * Refactoring applied:
+ * - Extracted type compatibility checks into separate helper methods
+ * - Reduced nested switch statements
+ * - Simplified control flow
+ */
+
+/**
+ * Return true if this column is compatible with the given JDBC type
+ * from {@link Types} and size.
+ */
+public boolean isCompatible(int type, String typeName, int size, int decimals) {
+    if (type == Types.OTHER || getType() == Types.OTHER) {
+        return true;
+    }
+    
+    int columnType = getType();
+    
+    if (isNumericType(columnType)) {
+        return isNumericType(type);
+    }
+    
+    if (isBinaryType(columnType)) {
+        return isBinaryType(type);
+    }
+    
+    if (isTextType(columnType)) {
+        return isTextOrTemporalType(type);
+    }
+    
+    if (isTemporalType(columnType)) {
+        return isTextOrTemporalType(type);
+    }
+    
+    return type == columnType;
+}
+
+/**
+ * Check if the given type is a numeric type.
+ */
+private boolean isNumericType(int type) {
+    return type == Types.BIT
+        || type == Types.TINYINT
+        || type == Types.BIGINT
+        || type == Types.INTEGER
+        || type == Types.NUMERIC
+        || type == Types.SMALLINT
+        || type == Types.DECIMAL
+        || type == Types.DOUBLE
+        || type == Types.FLOAT
+        || type == Types.REAL;
+}
+
+/**
+ * Check if the given type is a binary type.
+ */
+private boolean isBinaryType(int type) {
+    return type == Types.BINARY
+        || type == Types.BLOB
+        || type == Types.LONGVARBINARY
+        || type == Types.VARBINARY
+        || type == Types.OTHER;
+}
+
+/**
+ * Check if the given type is a text type.
+ */
+private boolean isTextType(int type) {
+    return type == Types.CLOB
+        || type == Types.CHAR
+        || type == Types.LONGVARCHAR
+        || type == Types.VARCHAR;
+}
+
+/**
+ * Check if the given type is a temporal type.
+ */
+private boolean isTemporalType(int type) {
+    return type == Types.DATE
+        || type == Types.TIME
+        || type == Types.TIMESTAMP;
+}
+
+/**
+ * Check if the given type is either a text or temporal type.
+ */
+private boolean isTextOrTemporalType(int type) {
+    return isTextType(type) || isTemporalType(type);
+}

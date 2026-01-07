@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class CodeQualityAnalyzer {
 
@@ -161,18 +162,39 @@ public class CodeQualityAnalyzer {
         }
         
         final List<String> actionableFeatures = config.getActionableFeatures();
-        log.debug("Actionable features from config: {}", actionableFeatures);
+        final java.util.Set<String> attributesInData = new java.util.HashSet<>();
+        for (int i = 0; i < data.numAttributes() - 1; i++) { // exclude class
+            attributesInData.add(data.attribute(i).name());
+        }
+        final List<String> actionablePresent = actionableFeatures.stream()
+            .filter(attributesInData::contains)
+            .collect(Collectors.toList());
+
+        log.info("Actionable features present in dataset: {}", actionablePresent);
+        log.info("Searching for highest InfoGain feature among actionable ones...");
         
         for (final double[] rankedAttribute : selector.rankedAttributes()) {
             final String featureName = data.attribute((int) rankedAttribute[0]).name();
-            if (actionableFeatures.contains(featureName)) {
-                LoggingPatterns.info(log, "Identified Top Actionable Feature (AFeature): {}", featureName);
+            final double infoGain = rankedAttribute[1];
+            final boolean isActionable = actionablePresent.contains(featureName);
+            
+            log.info("  Checking feature '{}' (InfoGain: {}) - Actionable: {}", featureName, String.format(java.util.Locale.US, "%.6f", infoGain), isActionable);
+            
+            if (isActionable) {
+                LoggingPatterns.info(log, "Identified Top Actionable Feature (AFeature): {} with InfoGain {}", featureName, String.format(java.util.Locale.US, "%.6f", infoGain));
                 return featureName;
             }
         }
-        final String fallbackFeature = actionableFeatures.get(0);
-        log.warn("No actionable feature found in ranked list. Defaulting to first in config: {}", fallbackFeature);
-        return fallbackFeature;
+        if (!actionablePresent.isEmpty()) {
+            final String fallbackFeature = actionablePresent.get(0);
+            log.warn("No actionable feature found in ranked list. Defaulting to first present in dataset: {}", fallbackFeature);
+            return fallbackFeature;
+        }
+
+        // Last resort: return first attribute (non-class) to avoid crashing
+        final String fallback = data.attribute(0).name();
+        log.warn("No actionable features available in dataset. Falling back to first attribute: {}", fallback);
+        return fallback;
     }
     
     /**

@@ -5,5 +5,6 @@ File Output for git clones: C:\Users\hp\Desktop\DefectPredictionProjectFinal\git
 Select project to analyze:
   1 ) BOOKKEEPER
   2 ) OPENJPA
+  a) All projects
   q) Quit
-Enter choice (1/2/q):
+Enter choice (1/2/a/q):
