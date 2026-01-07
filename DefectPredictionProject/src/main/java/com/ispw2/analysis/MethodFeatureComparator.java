@@ -20,6 +20,7 @@ public class MethodFeatureComparator {
     // Constants for string formatting
     private static final String TABLE_HEADER = String.format("%-30s | %12s | %12s | %12s", "Feature", "Original", "Refactored", "Improvement");
     private static final String TABLE_ROW_FORMAT = "%-30s | %12.2f | %12.2f | %12.2f";
+    private static final String CYCLOMATIC_COMPLEXITY = "CyclomaticComplexity";
 
     /**
      * Compares the features of original and refactored methods.
@@ -57,7 +58,7 @@ public class MethodFeatureComparator {
         log.info(TABLE_HEADER);
         log.info(String.join("", java.util.Collections.nCopies(74, "-")));
 
-        final java.util.List<String> actionable = java.util.Arrays.asList("CyclomaticComplexity");
+        final java.util.List<String> actionable = java.util.Arrays.asList(CYCLOMATIC_COMPLEXITY);
         final java.util.List<String> csvLines = new java.util.ArrayList<>();
         csvLines.add("Feature,Original,Refactored,Improvement");
 
@@ -249,12 +250,11 @@ public class MethodFeatureComparator {
      * @throws IOException If file reading fails
      */
     private Map<String, Double> parseMethodFeatures(final String filePath) throws IOException {
-        final Map<String, Double> features = new HashMap<>();
         final Path path = Paths.get(filePath);
         
         if (!Files.exists(path)) {
             log.warn("Method file not found: {}", filePath);
-            return features;
+            return new HashMap<>();
         }
 
         final String content = Files.readString(path);
@@ -262,93 +262,173 @@ public class MethodFeatureComparator {
         final int loc = lines.length;
         final double computedCc = calculateCyclomaticComplexity(content);
         
+        final FeatureParsingContext context = new FeatureParsingContext(loc, computedCc);
+        parseFeatureLinesFromContent(lines, context);
+        
+        return mergeAndFinalizeFeatures(context);
+    }
+    
+    /**
+     * Helper class to hold parsing context and results.
+     */
+    private static class FeatureParsingContext {
+        final int loc;
+        final double computedCc;
         boolean hasRefactoredTag = false;
         final Map<String, Double> originalFromComments = new HashMap<>();
         final Map<String, Double> refactoredFromComments = new HashMap<>();
+        final Map<String, Double> features = new HashMap<>();
         
-        for (final String line : lines) {
-            // Pattern: "* ORIGINAL: FeatureName = value" or "* REFACTORED: FeatureName = value"
-            if (line.contains("ORIGINAL:")) {
-                final String[] parts = line.split("=");
-                if (parts.length >= 2) {
-                    try {
-                        final String beforeEquals = parts[0];
-                        final String featureName = beforeEquals.substring(beforeEquals.indexOf("ORIGINAL:") + 9).trim();
-                        
-                        final String afterEquals = parts[1].trim();
-                        final String valueStr = afterEquals.split("\\s+")[0].trim();
-                        final double value = Double.parseDouble(valueStr);
-                        
-                        originalFromComments.put(featureName, value);
-                    } catch (final Exception e) {
-                        log.debug("Could not parse ORIGINAL feature from line: {}", line);
-                    }
-                }
-            }
-            
-            if (line.contains("REFACTORED:")) {
-                hasRefactoredTag = true;
-                final String[] parts = line.split("=");
-                if (parts.length >= 2) {
-                    try {
-                        final String beforeEquals = parts[0];
-                        final String featureName = beforeEquals.substring(beforeEquals.indexOf("REFACTORED:") + 11).trim();
-                        
-                        final String afterEquals = parts[1].trim();
-                        final String valueStr = afterEquals.split("\\s+")[0].trim();
-                        final double value = Double.parseDouble(valueStr);
-                        
-                        refactoredFromComments.put(featureName, value);
-                    } catch (final Exception e) {
-                        log.debug("Could not parse REFACTORED feature from line: {}", line);
-                    }
-                }
-            }
-            
-            // Also try standard format: "FeatureName: value"
-            if (line.contains(":") && !line.contains("//") && !line.contains("*")) {
-                final String[] parts = line.split(":");
-                if (parts.length == 2) {
-                    try {
-                        final String featureName = parts[0].trim();
-                        final double value = Double.parseDouble(parts[1].trim());
-                        features.put(featureName, value);
-                    } catch (final NumberFormatException e) {
-                        log.debug("Skipping non-numeric line: {}", line);
-                    }
-                }
-            }
+        FeatureParsingContext(int loc, double computedCc) {
+            this.loc = loc;
+            this.computedCc = computedCc;
         }
+    }
+    
+    /**
+     * Parses all feature lines from the content.
+     */
+    private void parseFeatureLinesFromContent(final String[] lines, final FeatureParsingContext context) {
+        for (final String line : lines) {
+            parseOriginalFeatureLine(line, context);
+            parseRefactoredFeatureLine(line, context);
+            parseStandardFeatureLine(line, context);
+        }
+    }
+    
+    /**
+     * Parses a line containing ORIGINAL: feature definition.
+     */
+    private void parseOriginalFeatureLine(final String line, final FeatureParsingContext context) {
+        if (!line.contains("ORIGINAL:")) return;
         
-        // Merge features: prefer REFACTORED values if available, otherwise use calculated values
-        if (hasRefactoredTag && !refactoredFromComments.isEmpty()) {
-            features.putAll(refactoredFromComments);
-            // Also calculate metrics not in metadata
-            if (!features.containsKey("LOC")) {
-                features.put("LOC", (double) loc);
-            }
-            // If CC is missing or zeroed in metadata, recompute from code to avoid stale values.
-            final Double cc = features.get("CyclomaticComplexity");
-            if (cc == null || cc <= 0) {
-                features.put("CyclomaticComplexity", computedCc);
-            }
-        } else if (!originalFromComments.isEmpty()) {
-            features.putAll(originalFromComments);
-            // Also calculate metrics not in metadata
-            if (!features.containsKey("LOC")) {
-                features.put("LOC", (double) loc);
-            }
-            if (!features.containsKey("CyclomaticComplexity")) {
-                features.put("CyclomaticComplexity", computedCc);
-            }
+        final String[] parts = line.split("=");
+        if (parts.length < 2) return;
+        
+        try {
+            final String featureName = extractFeatureName(parts[0], "ORIGINAL:", 9);
+            final String valueStr = parts[1].trim().split("\\s+")[0].trim();
+            final double value = Double.parseDouble(valueStr);
+            context.originalFromComments.put(featureName, value);
+        } catch (final Exception e) {
+            log.debug("Could not parse ORIGINAL feature from line: {}", line);
+        }
+    }
+    
+    /**
+     * Parses a line containing REFACTORED: feature definition.
+     */
+    private void parseRefactoredFeatureLine(final String line, final FeatureParsingContext context) {
+        if (!line.contains("REFACTORED:")) return;
+        
+        context.hasRefactoredTag = true;
+        final String[] parts = line.split("=");
+        if (parts.length < 2) return;
+        
+        try {
+            final String featureName = extractFeatureName(parts[0], "REFACTORED:", 11);
+            final String valueStr = parts[1].trim().split("\\s+")[0].trim();
+            final double value = Double.parseDouble(valueStr);
+            context.refactoredFromComments.put(featureName, value);
+        } catch (final Exception e) {
+            log.debug("Could not parse REFACTORED feature from line: {}", line);
+        }
+    }
+    
+    /**
+     * Parses a line in standard format: "FeatureName: value".
+     */
+    private void parseStandardFeatureLine(final String line, final FeatureParsingContext context) {
+        if (!line.contains(":") || line.contains("//") || line.contains("*")) return;
+        
+        final String[] parts = line.split(":");
+        if (parts.length != 2) return;
+        
+        try {
+            final String featureName = parts[0].trim();
+            final double value = Double.parseDouble(parts[1].trim());
+            context.features.put(featureName, value);
+        } catch (final NumberFormatException e) {
+            log.debug("Skipping non-numeric line: {}", line);
+        }
+    }
+    
+    /**
+     * Extracts feature name from a line containing a tag.
+     */
+    private String extractFeatureName(final String beforeEquals, final String tag, final int tagLength) {
+        return beforeEquals.substring(beforeEquals.indexOf(tag) + tagLength).trim();
+    }
+    
+    /**
+     * Merges parsed features and finalizes with computed metrics.
+     */
+    private Map<String, Double> mergeAndFinalizeFeatures(final FeatureParsingContext context) {
+        if (context.hasRefactoredTag && !context.refactoredFromComments.isEmpty()) {
+            return mergeFeaturesWithRefactored(context);
+        } else if (!context.originalFromComments.isEmpty()) {
+            return mergeFeaturesWithOriginal(context);
         } else {
-            // If no features found in comments, calculate basic metrics from code
-            log.debug("No metadata found, calculating basic metrics for: {}", filePath);
-            features.put("CyclomaticComplexity", computedCc);
+            return mergeFeaturesWithDefaults(context);
+        }
+    }
+    
+    /**
+     * Merges features when REFACTORED tag is present.
+     */
+    private Map<String, Double> mergeFeaturesWithRefactored(final FeatureParsingContext context) {
+        context.features.putAll(context.refactoredFromComments);
+        ensureLOCPresent(context.features, context.loc);
+        ensureCCNotZero(context.features, context.computedCc);
+        return context.features;
+    }
+    
+    /**
+     * Merges features when ORIGINAL is present.
+     */
+    private Map<String, Double> mergeFeaturesWithOriginal(final FeatureParsingContext context) {
+        context.features.putAll(context.originalFromComments);
+        ensureLOCPresent(context.features, context.loc);
+        ensureCCPresent(context.features, context.computedCc);
+        return context.features;
+    }
+    
+    /**
+     * Merges features with defaults when no comments found.
+     */
+    private Map<String, Double> mergeFeaturesWithDefaults(final FeatureParsingContext context) {
+        log.debug("No metadata found, calculating basic metrics for file");
+        context.features.put(CYCLOMATIC_COMPLEXITY, context.computedCc);
+        context.features.put("LOC", (double) context.loc);
+        return context.features;
+    }
+    
+    /**
+     * Ensures LOC is present in features.
+     */
+    private void ensureLOCPresent(final Map<String, Double> features, final int loc) {
+        if (!features.containsKey("LOC")) {
             features.put("LOC", (double) loc);
         }
-
-        return features;
+    }
+    
+    /**
+     * Ensures CC is present or recalculates if missing/zero.
+     */
+    private void ensureCCPresent(final Map<String, Double> features, final double computedCc) {
+        if (!features.containsKey(CYCLOMATIC_COMPLEXITY)) {
+            features.put(CYCLOMATIC_COMPLEXITY, computedCc);
+        }
+    }
+    
+    /**
+     * Ensures CC is not zero, recalculates if missing or zero.
+     */
+    private void ensureCCNotZero(final Map<String, Double> features, final double computedCc) {
+        final Double cc = features.get(CYCLOMATIC_COMPLEXITY);
+        if (cc == null || cc <= 0) {
+            features.put(CYCLOMATIC_COMPLEXITY, computedCc);
+        }
     }
     
     /**

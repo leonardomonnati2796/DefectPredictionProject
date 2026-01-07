@@ -178,7 +178,9 @@ public class CodeQualityAnalyzer {
             final double infoGain = rankedAttribute[1];
             final boolean isActionable = actionablePresent.contains(featureName);
             
-            log.info("  Checking feature '{}' (InfoGain: {}) - Actionable: {}", featureName, String.format(java.util.Locale.US, "%.6f", infoGain), isActionable);
+            if (log.isInfoEnabled()) {
+                log.info("  Checking feature '{}' (InfoGain: {}) - Actionable: {}", featureName, String.format(java.util.Locale.US, "%.6f", infoGain), isActionable);
+            }
             
             if (isActionable) {
                 LoggingPatterns.info(log, "Identified Top Actionable Feature (AFeature): {} with InfoGain {}", featureName, String.format(java.util.Locale.US, "%.6f", infoGain));

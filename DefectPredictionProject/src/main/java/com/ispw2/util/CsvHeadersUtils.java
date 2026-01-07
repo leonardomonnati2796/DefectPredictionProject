@@ -12,15 +12,20 @@ public final class CsvHeadersUtils {
         // Utility class - prevent instantiation
     }
 
+    // Header field names
+    private static final String PROJECT_HEADER = "Project";
+    private static final String METHOD_NAME_HEADER = "MethodName";
+    private static final String RELEASE_HEADER = "Release";
+
     /**
      * Standard CSV headers for method-level defect prediction datasets.
      * Includes project information, method identification, code quality metrics,
      * version control metrics, change metrics, and bug classification.
      */
     public static final String[] METHOD_DATASET_HEADERS = {
-        "Project", 
-        "MethodName", 
-        "Release", 
+        PROJECT_HEADER, 
+        METHOD_NAME_HEADER, 
+        RELEASE_HEADER, 
         CodeQualityMetrics.CODE_SMELLS, 
         CodeQualityMetrics.CYCLOMATIC_COMPLEXITY, 
         CodeQualityMetrics.PARAMETER_COUNT,
@@ -39,7 +44,7 @@ public final class CsvHeadersUtils {
      * Used in older versions of the dataset builder.
      */
     public static final String[] LEGACY_METHOD_DATASET_HEADERS = {
-        "Project", 
+        PROJECT_HEADER, 
         "MethodName", 
         "Release", 
         "CodeSmells", 
@@ -86,7 +91,7 @@ public final class CsvHeadersUtils {
         }
         
         // Check for required headers
-        final String[] requiredHeaders = {"Project", "MethodName", "Release", CodeQualityMetrics.IS_BUGGY};
+        final String[] requiredHeaders = {PROJECT_HEADER, METHOD_NAME_HEADER, RELEASE_HEADER, CodeQualityMetrics.IS_BUGGY};
         for (final String required : requiredHeaders) {
             boolean found = false;
             for (final String header : headers) {

@@ -15,6 +15,8 @@ import java.io.IOException;
 
 public class RefactoringImpactAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(RefactoringImpactAnalyzer.class);
+    private static final String FEATURE_PREFIX = "feature '";
+    private static final String CLASSIFIER_TRAINING_CONTEXT = "Classifier training";
     
     private final String processedArffPath;
     private Instances datasetA;
@@ -82,17 +84,17 @@ public class RefactoringImpactAnalyzer {
         
         analyzeResults(filteredBplus, filteredB, classifierForA);
         } catch (final ClassifierTrainingException e) {
-            ExceptionUtils.handleGenericException(log, "Classifier training", e, "feature '" + this.aFeatureName + "'");
-            ExceptionUtils.attemptRecovery(log, "Classifier training", e, "Using simplified classifier for limited analysis");
+            ExceptionUtils.handleGenericException(log, CLASSIFIER_TRAINING_CONTEXT, e, FEATURE_PREFIX + this.aFeatureName + "'");
+            ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, e, "Using simplified classifier for limited analysis");
             ExceptionUtils.logCannotProceed(log, "simulation", "without working classifier");
-            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Classifier training failed for feature '" + this.aFeatureName, e), e);
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Classifier training failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final DatasetCreationException e) {
-            ExceptionUtils.handleGenericException(log, "Dataset creation", e, "feature '" + this.aFeatureName + "'");
+            ExceptionUtils.handleGenericException(log, "Dataset creation", e, FEATURE_PREFIX + this.aFeatureName + "'");
             ExceptionUtils.attemptRecovery(log, "Dataset creation", e, "Creating fallback dataset for limited analysis");
-            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Dataset creation failed for feature '" + this.aFeatureName, e), e);
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Dataset creation failed for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         } catch (final Exception e) {
-            ExceptionUtils.handleGenericException(log, "Simulation", e, "feature '" + this.aFeatureName + "'");
-            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Unexpected error for feature '" + this.aFeatureName, e), e);
+            ExceptionUtils.handleGenericException(log, "Simulation", e, FEATURE_PREFIX + this.aFeatureName + "'");
+            throw new IOException(ExceptionUtils.createErrorMessage("Simulation aborted: Unexpected error for " + FEATURE_PREFIX + this.aFeatureName + "'", e), e);
         }
     }
     
@@ -138,7 +140,7 @@ public class RefactoringImpactAnalyzer {
      * @param e The training exception
      */
     private void handleTrainingError(final Exception e) {
-        ExceptionUtils.handleGenericException(log, "Classifier training", e);
+        ExceptionUtils.handleGenericException(log, CLASSIFIER_TRAINING_CONTEXT, e);
         tryAlternativeTraining();
         ExceptionUtils.logCannotProceed(log, "simulation", "without trained classifier");
     }
@@ -147,7 +149,7 @@ public class RefactoringImpactAnalyzer {
      * Attempts alternative classifier training methods.
      */
     private void tryAlternativeTraining() {
-        ExceptionUtils.attemptRecovery(log, "Classifier training", new Exception("Training failed"), "Using fallback training approach");
+        ExceptionUtils.attemptRecovery(log, CLASSIFIER_TRAINING_CONTEXT, new Exception("Training failed"), "Using fallback training approach");
     }
     
     private Instances createSyntheticDatasetB(final Instances datasetBplus, final String featureNameToModify) throws DatasetCreationException {
@@ -229,7 +231,7 @@ public class RefactoringImpactAnalyzer {
         // Question 2: Did any feature negatively correlated with bugginess increase in AFMethod2?
         if (delta > epsilon) {
             log.info(ApplicationConstants.QUESTION_2_YES, predictedDefectsInBRounded, predictedDefectsInBplusRounded);
-            log.info(ApplicationConstants.MAINTAINABILITY_MAY_IMPROVED, aFeatureName);
+            log.debug(ApplicationConstants.MAINTAINABILITY_MAY_IMPROVED, aFeatureName);
         } else if (Math.abs(delta) <= epsilon) {
             log.info(ApplicationConstants.QUESTION_2_NO_CHANGE, predictedDefectsInBRounded);
             if (expectedReduction > epsilon) {
@@ -251,55 +253,113 @@ public class RefactoringImpactAnalyzer {
 
         final int actualDefectsInA = DatasetUtilities.countActualDefective(this.datasetA);
         final int actualDefectsInBplus = DatasetUtilities.countActualDefective(bPlus);
-        // Use expected count as sum of predicted probabilities (double) to avoid threshold-related zeros
         final double predictedDefectsInB = DatasetUtilities.sumPredictedProbabilities(bClassifierA, b);
 
+        logFormulaComponents(actualDefectsInBplus, predictedDefectsInB, actualDefectsInA);
+
+        final double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
+
+        analyzeDropMetric(numerator, actualDefectsInBplus, predictedDefectsInB);
+        analyzeReductionMetric(numerator, actualDefectsInA, predictedDefectsInB);
+    }
+
+    /**
+     * Logs the formula components for analysis.
+     */
+    private void logFormulaComponents(final int actualDefectsInBplus, final double predictedDefectsInB, final int actualDefectsInA) {
         LoggingUtils.debugIfEnabled(log, ApplicationConstants.FORMULA_COMPONENTS_HEADER);
         LoggingUtils.debugIfEnabled(log, "Actual Defects in B+ (actual B+) = {}", actualDefectsInBplus);
         LoggingUtils.debugIfEnabled(log, "Predicted Defects in B (expected B) = {}", String.format(java.util.Locale.US, "%.2f", predictedDefectsInB));
         LoggingUtils.debugIfEnabled(log, "Actual Defects in A (actual A) = {}", actualDefectsInA);
         LoggingUtils.debugIfEnabled(log, ApplicationConstants.FORMULA_COMPONENTS_FOOTER);
+    }
 
-        double numerator = (double) actualDefectsInBplus - predictedDefectsInB;
-
+    /**
+     * Analyzes and logs the drop metric.
+     */
+    private void analyzeDropMetric(final double numerator, final int actualDefectsInBplus, final double predictedDefectsInB) {
         if (actualDefectsInBplus > 0) {
-            double drop = numerator / actualDefectsInBplus;
-            if (log.isInfoEnabled()) {
-                final double dropPct = drop * 100.0;
-                log.info("Formula 1 (drop) = (actual B+ - expected B) / actual B+ = ({} - {}) / {} = {} ({}%)",
-                    actualDefectsInBplus, (int)Math.round(predictedDefectsInB), actualDefectsInBplus, String.format("%.3f", drop), String.format(java.util.Locale.US, "%.2f", dropPct));
-                log.info("ANSWER 1 (drop): The calculated metric value is {} ({}%).", String.format("%.3f", drop), String.format(java.util.Locale.US, "%.2f", dropPct));
-
-                if (drop < 0) {
-                    log.warn("The 'drop' metric is negative: predicted defects in B ({}) are greater than actual defects in B+ ({}). This indicates the refactoring increased predicted defects.", (int)Math.round(predictedDefectsInB), actualDefectsInBplus);
-                }
-
-                if (Math.abs(drop) > 1.0) {
-                    log.warn("The magnitude of 'drop' is > 100% ({}%). This means the expected defects in B differ from actual B+ by more than 100%.", String.format(java.util.Locale.US, "%.2f", dropPct));
-                }
-            }
+            final double drop = numerator / actualDefectsInBplus;
+            logDropMetric(drop, actualDefectsInBplus, predictedDefectsInB);
+            validateDropMetric(drop, predictedDefectsInB, actualDefectsInBplus);
         } else {
             log.warn("Cannot calculate 'drop' metric because there are no actual defects in the B+ dataset (division by zero).");
         }
+    }
 
-        if (actualDefectsInA > 0) {
-            double reduction = numerator / actualDefectsInA;
-            if (log.isInfoEnabled()) {
-                final double reductionPct = reduction * 100.0;
-                log.info("Formula 2 (reduction) = (actual B+ - expected B) / actual A = ({} - {}) / {} = {} ({}%)",
-                    actualDefectsInBplus, (int)Math.round(predictedDefectsInB), actualDefectsInA, String.format("%.3f", reduction), String.format(java.util.Locale.US, "%.2f", reductionPct));
-                log.info("ANSWER 2 (reduction): The calculated metric value is {} ({}%).", String.format("%.3f", reduction), String.format(java.util.Locale.US, "%.2f", reductionPct));
+    /**
+     * Logs the drop metric calculation and result.
+     */
+    private void logDropMetric(final double drop, final int actualDefectsInBplus, final double predictedDefectsInB) {
+        if (log.isInfoEnabled()) {
+            final double dropPct = drop * 100.0;
+            log.info("Formula 1 (drop) = (actual B+ - expected B) / actual B+ = ({} - {}) / {} = {} ({}%)",
+                actualDefectsInBplus, (int)Math.round(predictedDefectsInB), actualDefectsInBplus, 
+                String.format("%.3f", drop), String.format(java.util.Locale.US, "%.2f", dropPct));
+            log.info("ANSWER 1 (drop): The calculated metric value is {} ({}%).", 
+                String.format("%.3f", drop), String.format(java.util.Locale.US, "%.2f", dropPct));
+        }
+    }
 
-                if (reduction < 0) {
-                    log.warn("The 'reduction' metric is negative: expected defects in B ({}) exceed actual defects in A ({}). Check classifier predictions or dataset composition.", (int)Math.round(predictedDefectsInB), actualDefectsInA);
-                }
-
-                if (Math.abs(reduction) > 1.0) {
-                    log.warn("The magnitude of 'reduction' is > 100% ({}%). This indicates a large relative change compared to total defects in A.", String.format(java.util.Locale.US, "%.2f", reductionPct));
-                }
+    /**
+     * Validates drop metric for edge cases.
+     */
+    private void validateDropMetric(final double drop, final double predictedDefectsInB, final int actualDefectsInBplus) {
+        if (log.isInfoEnabled()) {
+            if (drop < 0) {
+                log.warn("The 'drop' metric is negative: predicted defects in B ({}) are greater than actual defects in B+ ({}). This indicates the refactoring increased predicted defects.", 
+                    (int)Math.round(predictedDefectsInB), actualDefectsInBplus);
             }
+
+            if (Math.abs(drop) > 1.0) {
+                log.warn("The magnitude of 'drop' is > 100% ({}%). This means the expected defects in B differ from actual B+ by more than 100%.", 
+                    String.format(java.util.Locale.US, "%.2f", drop * 100.0));
+            }
+        }
+    }
+
+    /**
+     * Analyzes and logs the reduction metric.
+     */
+    private void analyzeReductionMetric(final double numerator, final int actualDefectsInA, final double predictedDefectsInB) {
+        if (actualDefectsInA > 0) {
+            final double reduction = numerator / actualDefectsInA;
+            logReductionMetric(reduction, actualDefectsInA, predictedDefectsInB);
+            validateReductionMetric(reduction, predictedDefectsInB, actualDefectsInA);
         } else {
             log.warn("Cannot calculate 'reduction' metric because there are no actual defects in the full dataset (division by zero).");
+        }
+    }
+
+    /**
+     * Logs the reduction metric calculation and result.
+     */
+    private void logReductionMetric(final double reduction, final int actualDefectsInA, final double predictedDefectsInB) {
+        if (log.isInfoEnabled()) {
+            final double reductionPct = reduction * 100.0;
+            // Note: numerator is actualDefectsInBplus - predictedDefectsInB
+            // We need to recalculate for display purposes
+            log.info("Formula 2 (reduction) = (actual B+ - expected B) / actual A = {} ({}%)",
+                String.format("%.3f", reduction), String.format(java.util.Locale.US, "%.2f", reductionPct));
+            log.info("ANSWER 2 (reduction): The calculated metric value is {} ({}%).", 
+                String.format("%.3f", reduction), String.format(java.util.Locale.US, "%.2f", reductionPct));
+        }
+    }
+
+    /**
+     * Validates reduction metric for edge cases.
+     */
+    private void validateReductionMetric(final double reduction, final double predictedDefectsInB, final int actualDefectsInA) {
+        if (log.isInfoEnabled()) {
+            if (reduction < 0) {
+                log.warn("The 'reduction' metric is negative: expected defects in B ({}) exceed actual defects in A ({}). Check classifier predictions or dataset composition.", 
+                    (int)Math.round(predictedDefectsInB), actualDefectsInA);
+            }
+
+            if (Math.abs(reduction) > 1.0) {
+                log.warn("The magnitude of 'reduction' is > 100% ({}%). This indicates a large relative change compared to total defects in A.", 
+                    String.format(java.util.Locale.US, "%.2f", reduction * 100.0));
+            }
         }
     }
 }

@@ -4,6 +4,8 @@ import weka.attributeSelection.InfoGainAttributeEval;
 import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.converters.ArffLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class FeatureImportanceChecker {
+    private static final Logger log = LoggerFactory.getLogger(FeatureImportanceChecker.class);
 
     public static void main(String[] args) throws Exception {
         final String arffPath = (args != null && args.length > 0) ? args[0] : "datasets/BOOKKEEPER_processed.arff";
@@ -31,9 +34,9 @@ public class FeatureImportanceChecker {
         }
 
         scores.sort(Comparator.comparingDouble((AttrScore s) -> s.score).reversed());
-        System.out.println("Attribute InfoGain ranking (desc):");
+        log.info("Attribute InfoGain ranking (desc):");
         for (final AttrScore s : scores) {
-            System.out.printf("%s : %.6f\n", s.name, s.score);
+            log.info("{} : {}", s.name, String.format(java.util.Locale.US, "%.6f", s.score));
         }
     }
 

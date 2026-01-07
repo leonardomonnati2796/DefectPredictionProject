@@ -426,24 +426,40 @@ public class DefectPredictionPipeline {
         try {
             final java.nio.file.Path p = java.nio.file.Paths.get(refactoredMethodPath);
             if (!java.nio.file.Files.exists(p)) return false;
-            try {
-                // consider non-empty if there is at least one non-whitespace character
-                final String refContent = java.nio.file.Files.readString(p);
-                if (refContent == null || refContent.trim().isEmpty()) return false;
-                // Validate signature compatibility with the original AFMethod
-                final java.nio.file.Path po = java.nio.file.Paths.get(originalMethodPath);
-                if (!java.nio.file.Files.exists(po)) return false;
-                final String origContent = java.nio.file.Files.readString(po);
-                final Signature sig = extractSignature(origContent);
-                if (sig == null) return false;
-                final int refParamCount = findMethodParamCount(refContent, sig.methodName);
-                return refParamCount >= 0 && refParamCount == sig.paramCount;
-            } catch (final Exception ex) {
-                // fallback to size check if reading fails
-                return java.nio.file.Files.size(p) > 0;
-            }
+            return validateRefactoredMethodContent(p, originalMethodPath);
         } catch (final Exception e) {
             return false;
+        }
+    }
+
+    /**
+     * Validates the content of the refactored method file.
+     * Checks that the file is non-empty and has matching method signature with the original.
+     *
+     * @param refactoredPath the path to the refactored method file
+     * @param originalMethodPath the path to the original method file
+     * @return true if validation passes, false otherwise
+     */
+    private static boolean validateRefactoredMethodContent(final java.nio.file.Path refactoredPath, final String originalMethodPath) {
+        try {
+            // consider non-empty if there is at least one non-whitespace character
+            final String refContent = java.nio.file.Files.readString(refactoredPath);
+            if (refContent == null || refContent.trim().isEmpty()) return false;
+            // Validate signature compatibility with the original AFMethod
+            final java.nio.file.Path po = java.nio.file.Paths.get(originalMethodPath);
+            if (!java.nio.file.Files.exists(po)) return false;
+            final String origContent = java.nio.file.Files.readString(po);
+            final Signature sig = extractSignature(origContent);
+            if (sig == null) return false;
+            final int refParamCount = findMethodParamCount(refContent, sig.methodName);
+            return refParamCount >= 0 && refParamCount == sig.paramCount;
+        } catch (final Exception ex) {
+            // fallback to size check if reading fails
+            try {
+                return java.nio.file.Files.size(refactoredPath) > 0;
+            } catch (final Exception e) {
+                return false;
+            }
         }
     }
 
