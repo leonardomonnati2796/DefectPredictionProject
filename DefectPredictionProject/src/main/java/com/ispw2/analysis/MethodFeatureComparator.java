@@ -166,7 +166,7 @@ public class MethodFeatureComparator {
                     java.nio.file.StandardOpenOption.CREATE,
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
             moveFileWithFallback(tmpFile, outFile);
-            log.info("Feature comparison CSV written to: {}", outFile.toString());
+            log.info("Feature comparison CSV written to: {}", outFile);
             return true;
         } catch (final IOException ioe) {
             if (attempt >= maxAttempts) {
